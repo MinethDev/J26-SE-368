@@ -32,6 +32,7 @@ Thumbs.db
 
 # Generated code-review evaluation results
 /components/pull-request/code_review/data/evaluation_results*.csv
+/components/pull-request/code_review/data/results/
 
 # Generated reviewer-recommendation results
 /components/pull-request/reviewer_recommendation/data/

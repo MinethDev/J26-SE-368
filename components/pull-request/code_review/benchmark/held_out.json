@@ -1,0 +1,356 @@
+{
+  "benchmark": "devintel-code-review-planted-defects",
+  "split": "held_out",
+  "description": "Frozen before prompt tuning; evaluated once, never used for iteration.",
+  "authored_by": "Assistant-generated for this project; not peer-authored.",
+  "line_numbering": "Expected lines are new-file line numbers derived from the hunk header.",
+  "cases": [
+    {
+      "pair_id": "held-01",
+      "language": "csharp",
+      "file_path": "src/Billing/InvoiceCalculator.cs",
+      "pr_title": "Sum invoice line amounts",
+      "id": "held-01-defect",
+      "label": "defect",
+      "diff": "@@ -30,3 +30,9 @@\n         public decimal Total(List<decimal> amounts)\n         {\n+            decimal sum = 0;\n+            for (int i = 0; i <= amounts.Count; i++)\n+            {\n+                sum += amounts[i];\n+            }\n+            return sum;\n         }",
+      "expected": {
+        "defect_type": "off_by_one",
+        "category": "correctness",
+        "acceptable_categories": [
+          "correctness",
+          "input_validation"
+        ],
+        "line": 33,
+        "description": "Loop condition <= reads one element past the end and throws ArgumentOutOfRangeException."
+      }
+    },
+    {
+      "pair_id": "held-01",
+      "language": "csharp",
+      "file_path": "src/Billing/InvoiceCalculator.cs",
+      "pr_title": "Sum invoice line amounts",
+      "id": "held-01-clean",
+      "label": "clean",
+      "diff": "@@ -30,3 +30,9 @@\n         public decimal Total(List<decimal> amounts)\n         {\n+            decimal sum = 0;\n+            for (int i = 0; i < amounts.Count; i++)\n+            {\n+                sum += amounts[i];\n+            }\n+            return sum;\n         }",
+      "expected": null
+    },
+    {
+      "pair_id": "held-02",
+      "language": "python",
+      "file_path": "config/database.py",
+      "pr_title": "Read database host from settings",
+      "id": "held-02-defect",
+      "label": "defect",
+      "diff": "@@ -11,1 +11,3 @@\n def database_host(settings):\n+    database = settings.get(\"database\")\n+    return database[\"host\"]",
+      "expected": {
+        "defect_type": "null_dereference",
+        "category": "null_safety",
+        "acceptable_categories": [
+          "correctness",
+          "input_validation",
+          "null_safety"
+        ],
+        "line": 13,
+        "description": "settings.get can return None, and indexing None raises TypeError."
+      }
+    },
+    {
+      "pair_id": "held-02",
+      "language": "python",
+      "file_path": "config/database.py",
+      "pr_title": "Read database host from settings",
+      "id": "held-02-clean",
+      "label": "clean",
+      "diff": "@@ -11,1 +11,3 @@\n def database_host(settings):\n+    database = settings.get(\"database\") or {}\n+    return database.get(\"host\", \"localhost\")",
+      "expected": null
+    },
+    {
+      "pair_id": "held-03",
+      "language": "typescript",
+      "file_path": "scripts/changelog.ts",
+      "pr_title": "Generate changelog for a branch",
+      "id": "held-03-defect",
+      "label": "defect",
+      "diff": "@@ -22,2 +22,5 @@\n import { exec } from \"child_process\";\n \n+export function changelog(branch: string, done: (log: string) => void): void {\n+  exec(\"git log --oneline \" + branch, (error, stdout) => done(stdout));\n+}",
+      "expected": {
+        "defect_type": "command_injection",
+        "category": "security",
+        "acceptable_categories": [
+          "input_validation",
+          "security"
+        ],
+        "line": 25,
+        "description": "Branch name is concatenated into a shell command, allowing command injection."
+      }
+    },
+    {
+      "pair_id": "held-03",
+      "language": "typescript",
+      "file_path": "scripts/changelog.ts",
+      "pr_title": "Generate changelog for a branch",
+      "id": "held-03-clean",
+      "label": "clean",
+      "diff": "@@ -22,2 +22,5 @@\n import { execFile } from \"child_process\";\n \n+export function changelog(branch: string, done: (log: string) => void): void {\n+  execFile(\"git\", [\"log\", \"--oneline\", branch], (error, stdout) => done(stdout));\n+}",
+      "expected": null
+    },
+    {
+      "pair_id": "held-04",
+      "language": "python",
+      "file_path": "importers/csv_import.py",
+      "pr_title": "Import rows from uploaded CSV",
+      "id": "held-04-defect",
+      "label": "defect",
+      "diff": "@@ -40,1 +40,4 @@\n def read_rows(path):\n+    handle = open(path, encoding=\"utf-8\")\n+    rows = list(csv.reader(handle))\n+    return rows",
+      "expected": {
+        "defect_type": "resource_leak",
+        "category": "resource_management",
+        "acceptable_categories": [
+          "error_handling",
+          "resource_management"
+        ],
+        "line": 41,
+        "description": "The file is opened but never closed."
+      }
+    },
+    {
+      "pair_id": "held-04",
+      "language": "python",
+      "file_path": "importers/csv_import.py",
+      "pr_title": "Import rows from uploaded CSV",
+      "id": "held-04-clean",
+      "label": "clean",
+      "diff": "@@ -40,1 +40,4 @@\n def read_rows(path):\n+    with open(path, encoding=\"utf-8\") as handle:\n+        rows = list(csv.reader(handle))\n+    return rows",
+      "expected": null
+    },
+    {
+      "pair_id": "held-05",
+      "language": "csharp",
+      "file_path": "src/Reports/UsageReport.cs",
+      "pr_title": "Average sessions per active user",
+      "id": "held-05-defect",
+      "label": "defect",
+      "diff": "@@ -75,3 +75,4 @@\n         public int AverageSessions(int totalSessions, int activeUsers)\n         {\n+            return totalSessions / activeUsers;\n         }",
+      "expected": {
+        "defect_type": "divide_by_zero",
+        "category": "correctness",
+        "acceptable_categories": [
+          "correctness",
+          "input_validation"
+        ],
+        "line": 77,
+        "description": "Integer division throws DivideByZeroException when there are no active users."
+      }
+    },
+    {
+      "pair_id": "held-05",
+      "language": "csharp",
+      "file_path": "src/Reports/UsageReport.cs",
+      "pr_title": "Average sessions per active user",
+      "id": "held-05-clean",
+      "label": "clean",
+      "diff": "@@ -75,3 +75,8 @@\n         public int AverageSessions(int totalSessions, int activeUsers)\n         {\n+            if (activeUsers == 0)\n+            {\n+                return 0;\n+            }\n+            return totalSessions / activeUsers;\n         }",
+      "expected": null
+    },
+    {
+      "pair_id": "held-06",
+      "language": "python",
+      "file_path": "clients/status.py",
+      "pr_title": "Poll service status asynchronously",
+      "id": "held-06-defect",
+      "label": "defect",
+      "diff": "@@ -8,1 +8,3 @@\n async def service_is_healthy(client, url):\n+    response = client.get(url)\n+    return response.status_code == 200",
+      "expected": {
+        "defect_type": "missing_await",
+        "category": "correctness",
+        "acceptable_categories": [
+          "correctness",
+          "error_handling"
+        ],
+        "line": 9,
+        "description": "client.get is a coroutine; without await, response is a coroutine object with no status_code."
+      }
+    },
+    {
+      "pair_id": "held-06",
+      "language": "python",
+      "file_path": "clients/status.py",
+      "pr_title": "Poll service status asynchronously",
+      "id": "held-06-clean",
+      "label": "clean",
+      "diff": "@@ -8,1 +8,3 @@\n async def service_is_healthy(client, url):\n+    response = await client.get(url)\n+    return response.status_code == 200",
+      "expected": null
+    },
+    {
+      "pair_id": "held-07",
+      "language": "php",
+      "file_path": "src/Controller/CommentController.php",
+      "pr_title": "Block banned users from commenting",
+      "id": "held-07-defect",
+      "label": "defect",
+      "diff": "@@ -56,3 +56,7 @@\n     public function postComment(User $user, string $text): Response\n     {\n+        if (!$user->isBanned()) {\n+            return new Response('Forbidden', 403);\n+        }\n+        return $this->comments->create($user, $text);\n     }",
+      "expected": {
+        "defect_type": "inverted_condition",
+        "category": "security",
+        "acceptable_categories": [
+          "correctness",
+          "security"
+        ],
+        "line": 58,
+        "description": "Condition is inverted: allowed users are blocked and banned users can comment."
+      }
+    },
+    {
+      "pair_id": "held-07",
+      "language": "php",
+      "file_path": "src/Controller/CommentController.php",
+      "pr_title": "Block banned users from commenting",
+      "id": "held-07-clean",
+      "label": "clean",
+      "diff": "@@ -56,3 +56,7 @@\n     public function postComment(User $user, string $text): Response\n     {\n+        if ($user->isBanned()) {\n+            return new Response('Forbidden', 403);\n+        }\n+        return $this->comments->create($user, $text);\n     }",
+      "expected": null
+    },
+    {
+      "pair_id": "held-08",
+      "language": "typescript",
+      "file_path": "src/utils/queue.ts",
+      "pr_title": "Reset queue when it becomes empty",
+      "id": "held-08-defect",
+      "label": "defect",
+      "diff": "@@ -19,2 +19,5 @@\n export function drain(queue: Job[]): void {\n+  if (queue.length = 0) {\n+    resetQueueMetrics();\n+  }\n }",
+      "expected": {
+        "defect_type": "assignment_in_condition",
+        "category": "correctness",
+        "acceptable_categories": [
+          "correctness"
+        ],
+        "line": 20,
+        "description": "Assignment instead of comparison truncates the queue and the condition is always false."
+      }
+    },
+    {
+      "pair_id": "held-08",
+      "language": "typescript",
+      "file_path": "src/utils/queue.ts",
+      "pr_title": "Reset queue when it becomes empty",
+      "id": "held-08-clean",
+      "label": "clean",
+      "diff": "@@ -19,2 +19,5 @@\n export function drain(queue: Job[]): void {\n+  if (queue.length === 0) {\n+    resetQueueMetrics();\n+  }\n }",
+      "expected": null
+    },
+    {
+      "pair_id": "held-09",
+      "language": "tsx",
+      "file_path": "src/components/RecentOrders.tsx",
+      "pr_title": "Highlight most recent order",
+      "id": "held-09-defect",
+      "label": "defect",
+      "diff": "@@ -27,2 +27,4 @@\n export function RecentOrders({ orders }: Props) {\n+  const latestId = orders[0].id;\n+  return <OrderTable orders={orders} highlightId={latestId} />;\n }",
+      "expected": {
+        "defect_type": "unchecked_index",
+        "category": "null_safety",
+        "acceptable_categories": [
+          "correctness",
+          "input_validation",
+          "null_safety"
+        ],
+        "line": 28,
+        "description": "orders[0] is undefined for an empty list, so .id throws."
+      }
+    },
+    {
+      "pair_id": "held-09",
+      "language": "tsx",
+      "file_path": "src/components/RecentOrders.tsx",
+      "pr_title": "Highlight most recent order",
+      "id": "held-09-clean",
+      "label": "clean",
+      "diff": "@@ -27,2 +27,4 @@\n export function RecentOrders({ orders }: Props) {\n+  const latestId = orders.length > 0 ? orders[0].id : undefined;\n+  return <OrderTable orders={orders} highlightId={latestId} />;\n }",
+      "expected": null
+    },
+    {
+      "pair_id": "held-10",
+      "language": "csharp",
+      "file_path": "src/Sync/RepositorySync.cs",
+      "pr_title": "Push local changes to remote",
+      "id": "held-10-defect",
+      "label": "defect",
+      "diff": "@@ -102,3 +102,10 @@\n         public void Push(Repository repository)\n         {\n+            try\n+            {\n+                _git.Push(repository.LocalPath);\n+            }\n+            catch (Exception)\n+            {\n+            }\n         }",
+      "expected": {
+        "defect_type": "swallowed_exception",
+        "category": "error_handling",
+        "acceptable_categories": [
+          "error_handling"
+        ],
+        "line": 108,
+        "description": "The empty catch block hides push failures."
+      }
+    },
+    {
+      "pair_id": "held-10",
+      "language": "csharp",
+      "file_path": "src/Sync/RepositorySync.cs",
+      "pr_title": "Push local changes to remote",
+      "id": "held-10-clean",
+      "label": "clean",
+      "diff": "@@ -102,3 +102,12 @@\n         public void Push(Repository repository)\n         {\n+            try\n+            {\n+                _git.Push(repository.LocalPath);\n+            }\n+            catch (Exception ex)\n+            {\n+                _logger.LogError(ex, \"Push failed for {Path}\", repository.LocalPath);\n+                throw;\n+            }\n         }",
+      "expected": null
+    },
+    {
+      "pair_id": "held-11",
+      "language": "python",
+      "file_path": "banking/transfers.py",
+      "pr_title": "Schedule recurring transfers",
+      "id": "held-11-defect",
+      "label": "defect",
+      "diff": "@@ -14,4 +14,6 @@\n def transfer(source, target, amount):\n     ledger.debit(source, amount)\n     ledger.credit(target, amount)\n \n+def run_standing_order(order):\n+    transfer(order.recipient, order.payer, order.amount)",
+      "expected": {
+        "defect_type": "swapped_arguments",
+        "category": "correctness",
+        "acceptable_categories": [
+          "correctness"
+        ],
+        "line": 19,
+        "description": "Source and target are swapped, so money moves from the recipient to the payer."
+      }
+    },
+    {
+      "pair_id": "held-11",
+      "language": "python",
+      "file_path": "banking/transfers.py",
+      "pr_title": "Schedule recurring transfers",
+      "id": "held-11-clean",
+      "label": "clean",
+      "diff": "@@ -14,4 +14,6 @@\n def transfer(source, target, amount):\n     ledger.debit(source, amount)\n     ledger.credit(target, amount)\n \n+def run_standing_order(order):\n+    transfer(order.payer, order.recipient, order.amount)",
+      "expected": null
+    },
+    {
+      "pair_id": "held-12",
+      "language": "php",
+      "file_path": "public/download.php",
+      "pr_title": "Allow downloading uploaded files",
+      "id": "held-12-defect",
+      "label": "defect",
+      "diff": "@@ -3,1 +3,3 @@\n <?php\n+$name = $_GET['file'];\n+readfile(__DIR__ . '/uploads/' . $name);",
+      "expected": {
+        "defect_type": "path_traversal",
+        "category": "security",
+        "acceptable_categories": [
+          "input_validation",
+          "security"
+        ],
+        "line": 4,
+        "description": "Unsanitized file name allows path traversal (e.g. ../../config.php)."
+      }
+    },
+    {
+      "pair_id": "held-12",
+      "language": "php",
+      "file_path": "public/download.php",
+      "pr_title": "Allow downloading uploaded files",
+      "id": "held-12-clean",
+      "label": "clean",
+      "diff": "@@ -3,1 +3,3 @@\n <?php\n+$name = basename($_GET['file']);\n+readfile(__DIR__ . '/uploads/' . $name);",
+      "expected": null
+    }
+  ]
+}

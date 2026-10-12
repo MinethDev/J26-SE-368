@@ -294,3 +294,128 @@ Bot subsets are small (54 validation, 64 test PRs). No statistical significance 
 - CI status, quality gates, merge conflicts, branch protection rules, and commit history are not in the dataset.
 - Thread resolution is approximated from author replies, which have no timestamps.
 - Approval features carry most of the auxiliary model's weight, but approvals partly reflect repository merge policies (e.g. branch protection requiring an approval before merge). Their predictive weight therefore does not show that approvals indicate readiness.
+
+## AI-Assisted Code Review
+
+Reviews a pull request diff with a local Ollama model (`qwen2.5-coder:3b`) and returns line-referenced findings. It is decision support: it never approves, rejects, or merges a pull request.
+
+### Pipeline
+
+`code_review/ai_reviewer.py` separates three steps:
+
+1. **Prompt construction** (`build_messages`): versioned prompts. v2 and v3 show the diff with new-file line numbers so findings can cite a line.
+2. **Model invocation** (`OllamaClient`): queries the model's reported context length first and sets `num_ctx` to `min(8192, context length)`; if the length is unavailable, `num_ctx` is not set. `temperature` is 0.
+3. **Response parsing** (`parse_response`): strict schema validation. Any malformed field makes the whole response `invalid_response`; it is never turned into findings or an empty result.
+
+`run_review()` returns an explicit status (`findings`, `no_findings`, `invalid_response`, `model_error`) with the raw response, prompt version and hash, model, options, and model metadata. `review_code(pr_title, file_path, code_diff, debug=False)` keeps its original interface: it returns `{"findings": [...]}` and raises `RuntimeError` on model errors or invalid responses.
+
+| Prompt | Description | Finding fields |
+|---|---|---|
+| v1 | Original prompt, kept verbatim for comparison | finding, explanation, suggestion, confidence |
+| v2 | Line-numbered diff, defect checklist, no fixture-specific rule | + line, category, severity |
+| v3 (default) | v2 plus rules against reporting problems the shown code already handles | same as v2 |
+
+Categories: correctness, null_safety, error_handling, input_validation, resource_management, security. Severities: high, medium, low.
+
+### Planted-defect benchmark
+
+`code_review/benchmark/` contains 24 pairs (48 cases): each pair is a diff with one planted defect (known category and new-file line) and a clean twin. Languages: Python, TypeScript/TSX, PHP, C#. Defect types: off-by-one, null/undefined dereference, divide-by-zero, inverted condition, assignment in condition, missing await, unchecked index, swapped arguments, resource leak, swallowed exception, SQL/command injection, path traversal.
+
+- **Development** (12 pairs): used for prompt development.
+- **Held-out** (12 pairs): frozen before prompt v2 was written (`held_out.freeze.json`, SHA-256 of the file with LF line endings). It is never used for iteration and may be evaluated only once (see "Held-out run marker").
+
+### Metrics
+
+Valid-response metrics exclude cases with an invalid response or model error from the denominator. Conservative metrics count those cases as failures. Both are reported, with numerator and denominator, and invalid-response and model-error rates are reported separately.
+
+| Metric | Numerator | Denominator |
+|---|---|---|
+| Detection rate | Defect cases with >= 1 finding | Defect cases with a valid response |
+| Localized detection rate | Defect cases with a finding within +/-1 of the expected line | Defect cases with a valid response |
+| False-positive rate | Clean cases with >= 1 finding | Clean cases with a valid response |
+| Precision | Defect cases with >= 1 finding | Cases with a valid response and >= 1 finding |
+| Line accuracy | Detected defect cases with a finding within +/-1 of the expected line | Detected defect cases |
+| Category accuracy | Detected defect cases with a finding in an acceptable category | Detected defect cases |
+| Pair accuracy | Pairs where the defect case is flagged and the clean twin is not | Pairs with both responses valid |
+| Conservative detection rate | Defect cases with a valid response and >= 1 finding | All defect cases |
+| Conservative localized detection rate | Defect cases with a valid response and a finding within +/-1 of the expected line | All defect cases |
+| Conservative pair accuracy | Pairs with both responses valid, the defect case flagged, and the clean twin not flagged | All pairs |
+| Invalid response rate / model error rate | Cases with that status | All cases |
+
+Line accuracy, localized detection and category accuracy are not available for v1, whose response schema has no line or category field.
+
+**Common valid pairs.** Each run that includes v1, v2 and v3 also reports all metrics restricted to the pairs where all three prompts produced valid responses for both cases, so every prompt is scored on the same pairs. Excluded pairs are listed.
+
+**Diagnostic sensitivity analysis (held-out only).** Held-out results are reported twice:
+- **Primary analysis:** all frozen held-out cases. This is the result of the benchmark.
+- **Diagnostic sensitivity analysis:** the same metrics excluding pairs `held-04`, `held-05` and `held-10`, whose clean twins resemble v3's examples of already-handled code. These pairs were chosen after inspecting the cases, so this analysis is potentially biased. It only indicates how much the overlap may affect the results, and never replaces the primary analysis.
+
+### Held-out run marker
+
+Before the first held-out case is sent to the model, the runner atomically creates `code_review/benchmark/held_out.run_marker.json` (exclusive creation; a second start fails). It records the held-out SHA-256, prompt versions and hashes, start time, and run status (`started`, then `completed` with the results path, or `failed` with the error). The marker lives outside the Git-ignored results directory so that results cleanup cannot remove it.
+
+Run order: verify the freeze manifest → stop if the marker or a held-out result already exists → fetch model metadata (no cases sent; stop if unavailable) → create the marker → send cases. If the marker exists, the runner stops before contacting the model.
+
+During a held-out run, the first model-call failure (status `model_error`, e.g. Ollama unreachable or timed out) stops the run: no further cases are sent, no results file is written, and the marker is set to `failed` with the error and the number of cases already sent. Invalid model responses (`invalid_response`) are a separate status and do not stop the run. Development runs record model errors and continue.
+
+The runner never resets or deletes the marker, and there is no reset command. If a run was interrupted (status `started` or `failed`), held-out cases may already have been sent to the model, so the held-out set may no longer be unseen. Manual recovery:
+1. Do not delete the marker. Read its status and error, look for partial results, and determine what happened to the process.
+2. Record what happened, including whether any held-out case reached the model.
+3. If any held-out case was sent, treat the held-out set as exposed: report this, and prefer a new, independently frozen held-out set over re-running.
+4. Only after this investigation, and with the decision documented, move the marker aside manually (keep it as evidence) before any new run.
+
+### Running
+
+```bash
+python components/pull-request/run_code_review_benchmark.py dev --prompts v1 v2 v3
+python components/pull-request/run_code_review_benchmark.py heldout --prompts v1 v2 v3   # once only
+python components/pull-request/run_code_review_benchmark.py realdata --prompt v3          # descriptive only
+python components/pull-request/run_code_review_benchmark.py check-freeze
+```
+
+Results are written to `code_review/data/results/` (ignored by Git) and are never overwritten. The earlier 30-example CSV files are kept unchanged.
+
+### Development results (12 pairs)
+
+| Metric | v1 | v2 | v3 |
+|---|---|---|---|
+| Detection rate | 0.167 (2/12) | 0.583 (7/12) | 0.636 (7/11) |
+| Localized detection rate | n/a (no line field) | 0.500 (6/12) | 0.545 (6/11) |
+| False-positive rate | 0.083 (1/12) | 0.333 (4/12) | 0.250 (3/12) |
+| Precision | 0.667 (2/3) | 0.636 (7/11) | 0.700 (7/10) |
+| Line accuracy | n/a | 0.857 (6/7) | 0.857 (6/7) |
+| Category accuracy | n/a | 0.714 (5/7) | 0.714 (5/7) |
+| Pair accuracy | 0.083 (1/12) | 0.333 (4/12) | 0.455 (5/11) |
+| Conservative detection rate | 0.167 (2/12) | 0.583 (7/12) | 0.583 (7/12) |
+| Conservative localized detection rate | n/a | 0.500 (6/12) | 0.500 (6/12) |
+| Conservative pair accuracy | 0.083 (1/12) | 0.333 (4/12) | 0.417 (5/12) |
+| Invalid responses / model errors | 0/24 / 0/24 | 0/24 / 0/24 | 1/24 / 0/24 |
+
+Common valid pairs (11 pairs; `dev-04` excluded because v3's response for its defect case was invalid):
+
+| Metric | v1 | v2 | v3 |
+|---|---|---|---|
+| Detection rate | 0.182 (2/11) | 0.636 (7/11) | 0.636 (7/11) |
+| False-positive rate | 0.091 (1/11) | 0.364 (4/11) | 0.273 (3/11) |
+| Precision | 0.667 (2/3) | 0.636 (7/11) | 0.700 (7/10) |
+| Pair accuracy | 0.091 (1/11) | 0.364 (4/11) | 0.455 (5/11) |
+
+- All three v1 findings were the same "division-by-zero" claim, including on an SQL-injection case and a clean twin: the original prompt's division-by-zero rule biased the model.
+- v3 was selected by a rule fixed before its run: highest development pair accuracy, then lower false-positive rate. Under the conservative and common-pairs comparisons, v3 detects the same number of defects as v2; its advantage is one fewer false positive and one more correct pair out of 12.
+- v3's invalid response (`dev-04`, truncated JSON) cited a line within tolerance of the defect but with an incorrect explanation, so excluding it, counting it as a miss, or counting it as a hit would each be debatable.
+- The development results were produced before the conservative and common-pairs metrics existed; they were recomputed from the stored records without new model calls.
+- The held-out split has not been evaluated yet.
+
+### Limitations
+
+These limitations bound what the benchmark can show; results should not be read as general bug-detection accuracy.
+
+- **Specified defect families, not open-ended review.** The v2/v3 prompts name 13 of the 14 planted defect types (all except React state mutation). The results measure detection of these named defect families, not unrestricted bug discovery.
+- **Overlap between v3 and held-out clean cases.** v3's examples of already-handled code (guard clauses, parameterised queries, using/with blocks, logged and re-raised exceptions) resemble the fixes in held-out clean cases `held-04`, `held-05` and `held-10`. This may lower v3's held-out false-positive rate; the diagnostic sensitivity analysis indicates how much.
+- **Familiar defect families.** 10 of the 12 held-out defect types also appear in the development set, mostly as the same defect in another language. The held-out set tests generalization to new code within mostly familiar defect families, not generalization to unseen defect types.
+- **Confounded v1 → v2 comparison.** v2 changes prompt wording, adds line-number annotations, and changes the response schema at the same time, so its improvement over v1 cannot be attributed to any single change.
+- **Same author, no peer validation.** The cases and the prompts were authored by the same developer (assistant-generated); no peer-authored or peer-validated cases were available.
+- **Small benchmark, no significance testing.** 12 pairs per split; differences of one or two cases are not meaningful, and no statistical significance test is run.
+- **Line location is not correctness.** A finding on the correct line does not prove that its explanation or suggested fix is correct; some findings cite the right line with a wrong explanation.
+- **Synthetic cases.** Planted defects are short, self-contained diffs with one defect each; real review hunks are partial and mostly UI/config code.
+- **No real-data ground truth.** Real-data runs are descriptive only: human review comments are not ground-truth bug labels.
