@@ -26,3 +26,9 @@ build/
 # OS
 .DS_Store
 Thumbs.db
+
+# Generated research datasets
+*.parquet
+
+# Generated code-review evaluation results
+/components/pull-request/code_review/data/evaluation_results*.csv
