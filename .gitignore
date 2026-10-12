@@ -35,3 +35,6 @@ Thumbs.db
 
 # Generated reviewer-recommendation results
 /components/pull-request/reviewer_recommendation/data/
+
+# Generated merge-readiness results
+/components/pull-request/merge_readiness/data/
