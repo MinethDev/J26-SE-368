@@ -18,11 +18,28 @@ The system does not autonomously approve, reject, or merge pull requests.
 ## Structure
 
 - `code_review/` - AI-assisted code review
-- `reviewer_recommendation/` - reviewer recommendation (planned)
+- `reviewer_recommendation/` - reviewer recommendation
 - `summarization/` - pull request summarization (planned)
 - `merge_readiness/` - merge-readiness decision support (planned)
 - `preprocessing/` - data preparation and preprocessing
 - `evaluation/` - component evaluation (planned)
+- `tests/` - unit tests (synthetic data; the raw dataset is not needed)
+- `run_reviewer_recommendation.py` - command-line entry point for reviewer recommendation
+
+## Development setup
+
+`components/pull-request/` is the component's source root: mechanism folders are importable packages (`preprocessing`, `reviewer_recommendation`). Entry-point scripts live in this folder, so they import the packages without modifying `sys.path`.
+
+```bash
+# From the repository root: create a local virtual environment (ignored by Git)
+python -m venv .venv
+.venv/Scripts/python -m pip install -r components/pull-request/requirements.txt   # Linux/macOS: .venv/bin/python
+
+# Run the unit tests
+.venv/Scripts/python -m unittest discover -s components/pull-request/tests -t components/pull-request
+```
+
+`pytest.ini` at the repository root configures the same source root and test folder for pytest (pytest itself is not yet a listed dependency).
 
 ## Data
 
@@ -32,6 +49,7 @@ The system does not autonomously approve, reject, or merge pull requests.
 - Source URL / dataset identifier: **unverified, not yet documented**.
 - The raw file is stored outside the repository and is not committed.
 - Current location: `D:\Downloads Folder\train-00001.parquet`. This path is hardcoded as `INPUT_FILE` in `code_review/dataset_builder.py` and as `file_path` in the `__main__` blocks of the `preprocessing/` modules. Edit it there if the file is stored elsewhere.
+- Reviewer recommendation resolves the path from `--raw-path`, then the `DEVINTEL_PR_RAW_DATA` environment variable, then the default above.
 
 ### Generated files
 
@@ -63,3 +81,114 @@ python components/pull-request/code_review/evaluate_reviewer.py
 `code_review/inspect_validation.py` prints a summary of the validation split. It uses a relative path and must be run from the repository root.
 
 The preprocessing modules (`preprocessing/validator.py` and others) can be run directly to print data-quality reports for the raw shard. They write no files.
+
+## Reviewer Recommendation
+
+Recommends human reviewers for a pull request and explains each recommendation. It is decision support: a human always selects the reviewers.
+
+### Task definition
+
+- **Input:** repository, PR author, PR title, PR creation time. Only information available when the PR is opened is used.
+- **Output:** top-k ranked reviewers, each with a score, three signal values, and plain-language reasons.
+- **Ground truth:** human accounts, other than the author, that submitted a `review` or an inline `review_comment` on the PR. General PR comments and thread replies are not counted.
+- **Excluded accounts:** bots (account type `Bot`, logins ending in `[bot]`, and `KNOWN_BOT_LOGINS` in `reviewer_recommendation/identity.py`: `matticbot`, `azclibot`), missing logins, and the PR author (case-insensitive).
+- **Candidates:** humans who reviewed in the same repository strictly before the PR was created, excluding the author.
+
+### Method
+
+Each candidate receives three signals, scaled to [0, 1] within the candidate set:
+
+| Signal | Definition |
+|---|---|
+| Activity | Recency-weighted number of PRs reviewed in the repository (weight halves every `half_life_days`) |
+| Author affinity | Recency-weighted number of this author's PRs the candidate reviewed |
+| Title similarity | Highest TF-IDF cosine similarity between the PR title and titles the candidate reviewed |
+
+The score is a weighted sum of the signals. Weights ({0, 0.25, 0.5, 0.75, 1}) and half-life ({30, 90, 180, 365} days) were selected by grid search on the validation split only (primary metric: MRR).
+
+Baselines rank the same candidate pool: **random**, **popularity** (most PRs reviewed in the repository), and **recent popularity** (most PRs reviewed in the last 90 days).
+
+### Leakage controls
+
+- All candidates and signals use review activity strictly before the PR's creation time.
+- File paths are not used: in this dataset they come only from review comments, so they would reveal the reviewers.
+- Final PR size (additions/deletions) is not used.
+- Chronological 70/15/15 split by PR within each repository.
+- The title vocabulary is fitted on training-split PRs only.
+- Settings were frozen (with a fingerprint of the code) before the single test-split run. The `test` command refuses to run if the code changed after freezing, or if the test split was already evaluated with the frozen settings.
+
+### Running
+
+```bash
+python components/pull-request/run_reviewer_recommendation.py validate   # tune on validation, compare with baselines
+python components/pull-request/run_reviewer_recommendation.py freeze     # freeze the selected settings
+python components/pull-request/run_reviewer_recommendation.py test       # evaluate once on the test split
+python components/pull-request/run_reviewer_recommendation.py recommend --repo OWNER/REPO --author LOGIN --title "PR title" --created-at 2024-09-01T00:00:00Z
+```
+
+Outputs are written to `reviewer_recommendation/data/results/` (ignored by Git): validation and test results (aggregate and per-repository metrics, run metadata, and dataset fingerprint), the selected settings, and the frozen settings.
+
+### Evaluation population
+
+| | PRs |
+|---|---|
+| Raw PR rows | 4,948 |
+| Unique PRs (3 duplicate rows removed) | 4,945 |
+| PRs with at least one eligible reviewer (evaluated) | 3,798 |
+| PRs excluded: no review events | 915 |
+| PRs excluded: only bot, missing-login, or author reviews | 232 |
+| Split: train / validation / test | 2,655 / 568 / 575 |
+
+A true reviewer was in the candidate pool for 98.2% of validation PRs (558/568) and 98.3% of test PRs; the remainder are first-time reviewers that no ranker using past activity can recommend.
+
+### Results
+
+Selected settings (validation): activity weight 0.25, author weight 1.0, title-similarity weight 0.25, half-life 90 days.
+
+**Validation (568 PRs, used for model selection):**
+
+| Ranker | MRR | Hit@1 | Hit@3 | Hit@5 | Recall@3 | Macro MRR |
+|---|---|---|---|---|---|---|
+| Random | 0.166 | 0.053 | 0.166 | 0.239 | 0.121 | 0.217 |
+| Popularity | 0.505 | 0.361 | 0.556 | 0.685 | 0.433 | 0.582 |
+| Recent popularity | 0.528 | 0.368 | 0.607 | 0.748 | 0.476 | 0.599 |
+| Recommender | 0.605 | 0.445 | 0.706 | 0.831 | 0.566 | 0.657 |
+| Activity only | 0.531 | 0.366 | 0.613 | 0.762 | 0.483 | 0.600 |
+| Author affinity only | 0.591 | 0.426 | 0.703 | 0.812 | 0.568 | 0.643 |
+| Title similarity only | 0.484 | 0.294 | 0.576 | 0.743 | 0.446 | 0.580 |
+
+**Test (575 PRs, held out, evaluated once with the frozen settings):**
+
+| Ranker | MRR | Hit@1 | Hit@3 | Hit@5 | Recall@3 | Macro MRR |
+|---|---|---|---|---|---|---|
+| Random | 0.160 | 0.061 | 0.123 | 0.226 | 0.093 | 0.204 |
+| Popularity | 0.401 | 0.210 | 0.459 | 0.649 | 0.386 | 0.559 |
+| Recent popularity | 0.428 | 0.235 | 0.520 | 0.670 | 0.427 | 0.564 |
+| Recommender | 0.614 | 0.445 | 0.734 | 0.844 | 0.653 | 0.687 |
+
+Macro MRR averages per-repository MRR so that `Altinn/altinn-studio` (67% of test PRs) does not dominate.
+
+**Test, per repository (MRR / Hit@3):**
+
+| Repository | PRs | Popularity | Recommender |
+|---|---|---|---|
+| Altinn/altinn-studio | 384 | 0.315 / 0.339 | 0.572 / 0.708 |
+| AppFlowy-IO/AppFlowy | 10 | 0.693 / 0.800 | 0.708 / 0.800 |
+| ArcadeData/arcadedb | 16 | 0.781 / 1.000 | 0.865 / 1.000 |
+| Automattic/wordpress-activitypub | 32 | 0.888 / 0.906 | 0.892 / 0.938 |
+| Automattic/wp-calypso | 28 | 0.123 / 0.179 | 0.231 / 0.286 |
+| Azure/azure-cli | 47 | 0.535 / 0.723 | 0.780 / 0.915 |
+| Azure/azure-cli-extensions | 19 | 0.595 / 0.737 | 0.655 / 0.684 |
+| Azure/azure-container-networking | 14 | 0.698 / 0.929 | 0.905 / 1.000 |
+| Azure/azure-functions-host | 14 | 0.483 / 0.429 | 0.607 / 0.714 |
+| Azure/azure-powershell | 11 | 0.475 / 0.818 | 0.660 / 0.727 |
+
+No statistical significance test has been run yet, so these results show observed differences only. Per-repository samples outside `Altinn/altinn-studio` are small (10-47 PRs).
+
+### Limitations
+
+- The changed-file list at PR creation is not available in this dataset, so file-ownership signals are not used.
+- Ground truth is who actually reviewed, not who would have been the best reviewer.
+- Reviewer workload and availability are not modelled.
+- One dataset shard; one repository provides about two-thirds of evaluated PRs.
+- New reviewers with no earlier activity in the repository cannot be recommended (about 1.7% of PRs).
