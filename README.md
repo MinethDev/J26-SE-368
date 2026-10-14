@@ -1,220 +1,56 @@
-# \# DevIntel
-
-# 
-
-# \## AI-Driven Integrated Development Analytics and Decision Support
-
-# 
-
-# DevIntel is an AI-assisted software engineering intelligence platform designed to provide contextualized and explainable decision support across the Software Development Life Cycle (SDLC).
-
-# 
-
-# The platform integrates four complementary intelligence components:
-
-# 
-
-# 1\. AI-Assisted Project Planning Intelligence
-
-# 2\. AI-Assisted Sprint Intelligence
-
-# 3\. AI-Assisted Software Quality Intelligence
-
-# 4\. AI-Assisted Pull Request Intelligence
-
-# 
-
-# The system is designed as a human-in-the-loop decision-support platform. AI-generated insights and recommendations support developers and project stakeholders, while final decisions remain under human control.
-
-# 
-
-# \---
-
-# 
-
-# \## Project Architecture
-
-# 
-
-# ```text
-
-# External Software Engineering Sources
-
-# &#x20;               |
-
-# &#x20;               v
-
-# &#x20;       Data Integration Layer
-
-# &#x20;               |
-
-# &#x20;               v
-
-# &#x20;         AI Orchestrator
-
-# &#x20;               |
-
-# &#x20;      +--------+--------+--------+--------+
-
-# &#x20;      |                 |                 |
-
-# &#x20;      v                 v                 v                 v
-
-# &#x20;  Project            Sprint           Software          Pull Request
-
-# &#x20;  Planning          Intelligence       Quality          Intelligence
-
-# &#x20;  Intelligence      Intelligence      Intelligence      Intelligence
-
-# &#x20;      |                 |                 |                 |
-
-# &#x20;      +-----------------+-----------------+-----------------+
-
-# &#x20;                             |
-
-# &#x20;                             v
-
-# &#x20;                Centralized Knowledge Repository
-
-# &#x20;                             |
-
-# &#x20;                             v
-
-# &#x20;                 Unified Decision Support Platform
-
-# &#x20;                             |
-
-# &#x20;                             v
-
-# &#x20;                Developers / Project Managers
-
-
-
-
-
-
-
-Repository Structure
-
-J26-SE-368/
-
-|
-
-+-- backend/
-
-|   Common backend services and APIs
-
-|
-
-+-- frontend/
-
-|   Unified DevIntel user interface
-
-|
-
-+-- components/
-
-|   +-- planning/
-
-|   |   AI-Assisted Project Planning Intelligence
-
-|   |
-
-|   +-- sprint/
-
-|   |   AI-Assisted Sprint Intelligence
-
-|   |
-
-|   +-- quality/
-
-|   |   AI-Assisted Software Quality Intelligence
-
-|   |
-
-|   +-- pull-request/
-
-|       AI-Assisted Pull Request Intelligence
-
-|
-
-+-- shared/
-
-|   Shared models, utilities, schemas and services
-
-|
-
-+-- docs/
-
-|   Architecture, research and development documentation
-
-|
-
-+-- .gitignore
-
-+-- README.md
-
-
-
-
-
-Development Approach
-
-The project will be developed using an iterative Agile approach.
-
-Each component will be developed and evaluated independently before being integrated into the wider DevIntel platform.
-
-Development stages include:
-
-\- Problem and task definition
-
-\- Dataset identification
-
-\- Data preparation
-
-\- Baseline implementation
-
-\- AI/ML implementation
-
-\- Evaluation
-
-\- API development
-
-\- User interface development
-
-\- Component integration
-
-\- System-level testing
-
-Development Branches
-
-main
-
-&#x20; |
-
-&#x20; +-- develop
-
-&#x20;      |
-
-&#x20;      +-- feature/planning
-
-&#x20;      +-- feature/sprint
-
-&#x20;      +-- feature/quality
-
-&#x20;      +-- feature/pull-request
-
-
-
-Branch Rules
-
-\- main — stable versions only
-
-\- develop — integration branch
-
-\- feature/\* — individual component development
-
-\- Do not directly push feature work to main
-
-\- Components should be merged into develop through Pull Requests
-
+# DevIntel
+
+**AI-Driven Integrated Development Analytics and Decision Support** (Project J26-SE-368)
+
+DevIntel brings software-engineering data from GitHub, Jira, SonarQube and requirement documents into one place, and runs four AI components over it to give explainable, human-in-the-loop decision support.
+
+| Component | Owner | Folder |
+|---|---|---|
+| Project Planning Intelligence | Vidusini W. M. O. | `components/planning/` |
+| Sprint Intelligence | Wahalathanthri E. I. | `components/sprint/` |
+| Software Quality Intelligence | Senura Virantha S.J. | `components/quality/` |
+| Pull Request Intelligence | Perera W. M. M. | `components/pull-request/` |
+
+## Architecture
+
+```text
+ GitHub   Jira   SonarQube   SRS upload        Data sources
+    \       |        |         /
+     Data Integration Layer                    platform/server/src/connectors/
+  (connectors + common data model)             platform/server/src/models/
+                 |
+           AI Orchestrator                     platform/server/src/orchestrator/
+   planning -> sprint -> quality -> pull-request   (each receives earlier insights: intelligence flow)
+     |          |          |            |
+  :8001      :8002      :8003        :8004     components/*/service/  (Python FastAPI)
+                 |
+       Knowledge Repository                    MongoDB "insights" collection
+                 |
+        Unified Dashboard                      platform/client/  (React)
+```
+
+Stack: **MERN** (MongoDB, Express, React, Node.js) for the platform, and **Python + FastAPI** for the AI components.
+
+## Repository structure
+
+```text
+platform/server/     Express API: auth, connectors, orchestrator, knowledge repository
+platform/client/     React dashboard (one page per component + overview + data sources)
+components/<name>/   Each AI component: research code + service/ (FastAPI, Contract 3)
+shared/schemas/      The contracts as JSON Schema (single source of truth)
+docs/                CONTRACTS.md (read this first), GETTING_STARTED.md
+docker-compose.yml   MongoDB and SonarQube for local development
+```
+
+## Start here
+
+1. **[docs/GETTING_STARTED.md](docs/GETTING_STARTED.md)**: run the whole system on your machine.
+2. **[docs/CONTRACTS.md](docs/CONTRACTS.md)**: the three agreements every component follows.
+3. Your component's `service/README.md`: how to plug your model in.
+
+## Branching rules
+
+- `main`: stable, presentation-ready versions only
+- `develop`: integration branch
+- `feature/<component>`: your own work, merged into `develop` through a pull request with at least one teammate's review
+- Never commit `.env` files, datasets (`*.parquet`) or `node_modules/`

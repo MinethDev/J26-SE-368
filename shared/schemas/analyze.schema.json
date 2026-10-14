@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://devintel/schemas/analyze.schema.json",
+  "title": "DevIntel Component API: POST /analyze",
+  "description": "Contract 3. The request the AI Orchestrator sends to every component service, and the response it expects back.",
+  "$defs": {
+    "request": {
+      "type": "object",
+      "required": ["projectId", "context"],
+      "properties": {
+        "projectId": { "type": "string" },
+        "context": {
+          "description": "Component-specific data gathered by the orchestrator from the common data model (see docs/CONTRACTS.md for what each component receives).",
+          "type": "object"
+        },
+        "upstream": {
+          "description": "Insights already produced by other components in this run (the intelligence flow). Keyed by component name.",
+          "type": "object"
+        }
+      }
+    },
+    "response": {
+      "type": "object",
+      "required": ["component", "modelVersion", "insights"],
+      "properties": {
+        "component": { "enum": ["planning", "sprint", "quality", "pull-request"] },
+        "modelVersion": { "type": "string" },
+        "insights": {
+          "type": "array",
+          "items": { "$ref": "insight.schema.json" }
+        }
+      }
+    }
+  }
+}

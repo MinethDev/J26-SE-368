@@ -1,0 +1,101 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://devintel/schemas/insight.schema.json",
+  "title": "DevIntel Insight",
+  "description": "Contract 2. The single output format every intelligence component returns. The platform stores these in the Knowledge Repository (MongoDB 'insights' collection) and the dashboard renders them with shared widgets.",
+  "type": "object",
+  "required": ["component", "type", "title", "target", "prediction", "modelVersion"],
+  "additionalProperties": false,
+  "properties": {
+    "component": {
+      "description": "Which intelligence component produced this insight.",
+      "enum": ["planning", "sprint", "quality", "pull-request"]
+    },
+    "type": {
+      "description": "Machine-readable insight kind, chosen by the component, e.g. 'effort-estimate', 'sprint-health', 'quality-risk', 'reviewer-recommendation'.",
+      "type": "string",
+      "minLength": 1
+    },
+    "title": {
+      "description": "One-line human-readable headline shown on the insight card.",
+      "type": "string",
+      "minLength": 1
+    },
+    "target": {
+      "description": "The thing this insight is about.",
+      "type": "object",
+      "required": ["type", "id"],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "enum": ["project", "requirement", "sprint", "issue", "repository", "file", "pullRequest", "developer"]
+        },
+        "id": { "type": "string", "minLength": 1 },
+        "label": { "type": "string" }
+      }
+    },
+    "prediction": {
+      "description": "The main output. 'value' may be a number, string, list or object.",
+      "type": "object",
+      "required": ["label", "value"],
+      "additionalProperties": false,
+      "properties": {
+        "label": { "type": "string" },
+        "value": {},
+        "unit": { "type": "string" }
+      }
+    },
+    "confidence": {
+      "description": "Model confidence in [0, 1], or null if not applicable.",
+      "type": ["number", "null"],
+      "minimum": 0,
+      "maximum": 1
+    },
+    "severity": {
+      "description": "How urgently a human should look at this.",
+      "enum": ["info", "low", "medium", "high", "critical"]
+    },
+    "explanation": {
+      "description": "Feature contributions (e.g. SHAP values, or weighted signals). Positive impact pushes the prediction up.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["feature", "impact"],
+        "additionalProperties": false,
+        "properties": {
+          "feature": { "type": "string" },
+          "value": {},
+          "impact": { "type": "number" }
+        }
+      }
+    },
+    "recommendations": {
+      "description": "Plain-language suggested actions. A human decides whether to act.",
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "evidence": {
+      "description": "Links back to the source data that supports this insight.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["source", "ref"],
+        "additionalProperties": false,
+        "properties": {
+          "source": { "enum": ["github", "jira", "sonarqube", "upload", "component"] },
+          "ref": { "type": "string" },
+          "note": { "type": "string" }
+        }
+      }
+    },
+    "modelVersion": {
+      "description": "Identifies the model/settings that produced this insight, e.g. 'rr-v1'.",
+      "type": "string",
+      "minLength": 1
+    },
+    "isStub": {
+      "description": "True while the component returns placeholder output. The dashboard labels stub insights clearly.",
+      "type": "boolean"
+    }
+  }
+}
