@@ -36,7 +36,7 @@ function prState(pr) {
  * @param {object} project  Project document with github.owner and github.repo
  * @param {{ maxPullRequests?: number }} options
  */
-export async function syncGithub(project, { maxPullRequests = 100 } = {}) {
+export async function syncGithub(project, { maxPullRequests = 400 } = {}) {
   const { owner, repo } = project.github || {};
   if (!owner || !repo) throw Object.assign(new Error('Project has no GitHub owner/repo configured'), { status: 400 });
   const projectId = project.key;
