@@ -203,7 +203,25 @@ def to_pr_context(pr: dict, repo: str) -> PRContext:
             actor=normalize_login(review.get("reviewer")),
             actor_type="Bot" if review.get("reviewerIsBot") else "User",
             timestamp=to_utc(review["submittedAt"]),
-            state=review.get("state"),
+                        state=review.get("state"),
+        ))
+
+    # Inline review threads: a thread starts with a comment that is not a reply;
+    # its replies tell us whether the PR author has answered it.
+    comments = pr.get("reviewComments") or []
+    replies = {}
+    for c in comments:
+        if c.get("inReplyTo") is not None:
+            replies.setdefault(c["inReplyTo"], []).append(normalize_login(c.get("author")))
+    for c in comments:
+        if c.get("inReplyTo") is not None or not c.get("createdAt"):
+            continue
+        events.append(PREvent(
+            event_type="review_comment",
+            actor=normalize_login(c.get("author")),
+            actor_type="Bot" if c.get("authorIsBot") else "User",
+            timestamp=to_utc(c["createdAt"]),
+            reply_actors=tuple(r for r in replies.get(c.get("id"), []) if r),
         ))
 
     return PRContext(
@@ -253,6 +271,17 @@ def merge_readiness(open_prs: list, request: AnalyzeRequest) -> list:
         touched = sorted({f.get("path") for f in pr.get("files") or []} & hotspots)
         if touched:
             recommendations.append(f"Touches quality hotspot(s) flagged by Quality Intelligence: {', '.join(touched)}. Review these files carefully.")
+
+        checks = pr.get("checks") or {}
+        details = checks.get("details") or {}
+        if checks.get("ci") or checks.get("merge_conflicts"):
+            ci_text = {
+                "pass": f"passing ({details.get('ciTotal', 0)} check(s))",
+                "fail": f"failing: {', '.join(details.get('ciFailing') or [])}",
+                "pending": f"still running: {', '.join(details.get('ciPending') or [])}",
+            }.get(checks.get("ci"), "no CI configured")
+            conflict_text = {"pass": "none", "fail": "conflicts with the base branch"}.get(checks.get("merge_conflicts"), "not yet computed by GitHub")
+            recommendations.append(f"Live GitHub status: CI {ci_text}; merge conflicts: {conflict_text}.")
 
         recommendations.append(assessment.disclaimer)
 

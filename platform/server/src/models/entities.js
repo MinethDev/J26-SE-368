@@ -58,6 +58,9 @@ export const PullRequest = entity('PullRequest', {
   labels: [String],
   requestedReviewers: [String],
   files: [{ _id: false, path: String, status: String, additions: Number, deletions: Number, patch: String }],
+    // Open PRs only: CI / merge-conflict status and inline review comments (for merge-readiness).
+  checks: Schema.Types.Mixed, // { ci: 'pass'|'fail'|'pending'|null, merge_conflicts: 'pass'|'fail'|null, quality_gate: null, details }
+  reviewComments: [{ _id: false, id: Number, inReplyTo: Number, author: String, authorIsBot: Boolean, path: String, createdAt: Date }],
   reviews: [{ _id: false, reviewer: String, reviewerIsBot: Boolean, state: String, submittedAt: Date, body: String }],
 });
 
