@@ -16,14 +16,20 @@ ROOT = Path(__file__).resolve().parent
 
 
 def main() -> None:
-    names = sys.argv[1:] or list(SERVICES)
+    args = sys.argv[1:]
+    # Auto-reload is off by default: on Windows, one service reloading sends Ctrl+C
+    # to the whole console, which stops every service. Restart this script after code changes.
+    reload = "--reload" in args
+    names = [a for a in args if a != "--reload"] or list(SERVICES)
     unknown = [n for n in names if n not in SERVICES]
     if unknown:
         sys.exit(f"Unknown service(s): {', '.join(unknown)}. Choose from: {', '.join(SERVICES)}")
 
     procs = []
     for name in names:
-        cmd = [sys.executable, "-m", "uvicorn", "app:app", "--port", str(SERVICES[name]), "--reload"]
+        cmd = [sys.executable, "-m", "uvicorn", "app:app", "--port", str(SERVICES[name])]
+        if reload:
+            cmd.append("--reload")
         procs.append(subprocess.Popen(cmd, cwd=ROOT / name / "service"))
         print(f"[services] {name:<13} http://127.0.0.1:{SERVICES[name]}/docs")
     try:

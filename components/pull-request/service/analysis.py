@@ -47,7 +47,7 @@ from reviewer_recommendation.recommender import (  # noqa: E402
 from contract import AnalyzeRequest, Evidence, ExplanationItem, Insight, Prediction, Target  # noqa: E402
 
 COMPONENT = "pull-request"
-MODEL_VERSION = "pr-0.2 (rr-v1, mr-v1)"
+MODEL_VERSION = f"pr-0.3 (rr-v1, mr-v1, cr-{DEFAULT_PROMPT_VERSION})"
 
 # Settings selected on the validation split and frozen before the single test
 # run (see components/pull-request/README.md, "Reviewer Recommendation").
