@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { api } from '../lib/api.js';
 import { useAuth } from '../lib/auth.jsx';
 import { useProject } from '../lib/project.jsx';
+import NewProjectForm from '../components/NewProjectForm.jsx';
 
 const SOURCES = [
   { key: 'github', name: 'GitHub', desc: 'Repository, pull requests, changed files and reviews' },
@@ -144,6 +145,7 @@ export default function DataSources() {
           </form>
         </section>
       )}
+      {isManager && <NewProjectForm />}
     </div>
   );
 }
