@@ -26,6 +26,62 @@ async function paginate(path, { max = Infinity } = {}) {
   return out.slice(0, max);
 }
 
+// CI status for a commit, combining GitHub check runs (Actions) and legacy commit statuses.
+export function summarizeCi(checkRuns, combinedStatus) {
+  const runs = checkRuns || [];
+  const statuses = combinedStatus?.statuses || [];
+  if (!runs.length && !statuses.length) return { ci: null, total: 0, failing: [], pending: [] };
+
+  const FAILED = ['failure', 'timed_out', 'cancelled', 'action_required', 'startup_failure'];
+  const failing = [
+    ...runs.filter((r) => r.status === 'completed' && FAILED.includes(r.conclusion)).map((r) => r.name),
+    ...statuses.filter((s) => ['failure', 'error'].includes(s.state)).map((s) => s.context),
+  ];
+  const pending = [
+    ...runs.filter((r) => r.status !== 'completed').map((r) => r.name),
+    ...statuses.filter((s) => s.state === 'pending').map((s) => s.context),
+  ];
+  const ci = failing.length ? 'fail' : pending.length ? 'pending' : 'pass';
+  return { ci, total: runs.length + statuses.length, failing, pending };
+}
+
+// GitHub computes mergeability lazily: null means "not computed yet".
+export function summarizeConflicts(mergeable) {
+  if (mergeable === true) return 'pass';
+  if (mergeable === false) return 'fail';
+  return null;
+}
+
+// Extra data for open PRs only (merge-readiness): CI, conflicts and inline review comments.
+async function openPrExtras(fullName, detail) {
+  const base = `/repos/${fullName}`;
+  const sha = detail.head?.sha;
+  const [checkRuns, combinedStatus, comments] = await Promise.all([
+    sha ? getJson(`${API}${base}/commits/${sha}/check-runs?per_page=100`, headers()).then((r) => r.check_runs).catch(() => null) : null,
+    sha ? getJson(`${API}${base}/commits/${sha}/status`, headers()).catch(() => null) : null,
+    paginate(`${base}/pulls/${detail.number}/comments`, { max: 300 }).catch(() => []),
+  ]);
+  const ci = checkRuns === null && combinedStatus === null ? { ci: null, total: 0, failing: [], pending: [] } : summarizeCi(checkRuns, combinedStatus);
+  return {
+    checks: {
+      ci: ci.ci,
+      merge_conflicts: summarizeConflicts(detail.mergeable),
+      quality_gate: null, // SonarQube quality gates are not linked to PRs yet
+      details: { ciTotal: ci.total, ciFailing: ci.failing, ciPending: ci.pending, mergeableState: detail.mergeable_state },
+    },
+    reviewComments: comments
+      .filter((c) => c.user)
+      .map((c) => ({
+        id: c.id,
+        inReplyTo: c.in_reply_to_id ?? null,
+        author: c.user.login,
+        authorIsBot: isBot(c.user),
+        path: c.path,
+        createdAt: c.created_at,
+      })),
+  };
+}
+
 function prState(pr) {
   if (pr.merged_at) return 'merged';
   return pr.state === 'closed' ? 'closed' : 'open';
@@ -73,6 +129,7 @@ export async function syncGithub(project, { maxPullRequests = 400 } = {}) {
     ]);
     addDev(detail.user);
     reviews.forEach((r) => addDev(r.user));
+        const extras = prState(detail) === 'open' ? await openPrExtras(fullName, detail) : { checks: null, reviewComments: [] };
     return {
       projectId,
       source: 'github',
@@ -102,6 +159,7 @@ export async function syncGithub(project, { maxPullRequests = 400 } = {}) {
       reviews: reviews
         .filter((r) => r.user)
         .map((r) => ({ reviewer: r.user.login, reviewerIsBot: isBot(r.user), state: r.state, submittedAt: r.submitted_at, body: r.body })),
+              ...extras,
     };
   });
 

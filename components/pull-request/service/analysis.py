@@ -13,6 +13,8 @@ upstream:
   quality: insights from the quality component in this run (file hotspots)
 """
 
+import hashlib
+import os
 import sys
 from pathlib import Path
 
@@ -24,6 +26,15 @@ if str(COMPONENT_ROOT) not in sys.path:
     sys.path.insert(0, str(COMPONENT_ROOT))
 
 from merge_readiness.assessment import ATTENTION, BLOCKING, LABEL_INSUFFICIENT, LABEL_READY, PASS, assess  # noqa: E402
+from code_review.ai_reviewer import (  # noqa: E402
+    DEFAULT_PROMPT_VERSION,
+    MODEL_NAME,
+    STATUS_FINDINGS,
+    STATUS_INVALID,
+    STATUS_MODEL_ERROR,
+    OllamaClient,
+    run_review,
+)
 from merge_readiness.context import PRContext, PREvent, to_utc  # noqa: E402
 from reviewer_recommendation.identity import is_bot, normalize_login, same_login  # noqa: E402
 from reviewer_recommendation.recommender import (  # noqa: E402
@@ -36,7 +47,7 @@ from reviewer_recommendation.recommender import (  # noqa: E402
 from contract import AnalyzeRequest, Evidence, ExplanationItem, Insight, Prediction, Target  # noqa: E402
 
 COMPONENT = "pull-request"
-MODEL_VERSION = "pr-0.2 (rr-v1, mr-v1)"
+MODEL_VERSION = f"pr-0.3 (rr-v1, mr-v1, cr-{DEFAULT_PROMPT_VERSION})"
 
 # Settings selected on the validation split and frozen before the single test
 # run (see components/pull-request/README.md, "Reviewer Recommendation").
@@ -47,6 +58,19 @@ REVIEWER_CONFIG = RecommenderConfig(
     half_life_days=90.0,
 )
 TOP_K_REVIEWERS = 3
+
+# AI code review runs a local LLM (Ollama), which takes seconds per file, so each
+# run reviews only the most recent open PRs and their smallest code changes.
+# Set DEVINTEL_CODE_REVIEW=off to skip it (e.g. when Ollama is not installed).
+CODE_REVIEW_ENABLED = os.environ.get("DEVINTEL_CODE_REVIEW", "on").lower() != "off"
+CODE_REVIEW_MAX_PRS = int(os.environ.get("DEVINTEL_CODE_REVIEW_MAX_PRS", "3"))
+CODE_REVIEW_MAX_FILES = 2
+CODE_REVIEW_MAX_PATCH_LINES = 120
+CODE_EXTENSIONS = {
+    ".py", ".js", ".jsx", ".ts", ".tsx", ".java", ".cs", ".php", ".go", ".rb",
+    ".kt", ".c", ".cc", ".cpp", ".h", ".hpp", ".rs", ".swift", ".scala",
+}
+SEVERITY_ORDER = {"low": 1, "medium": 2, "high": 3}
 
 
 # ---------------------------------------------------------------------------
@@ -179,7 +203,25 @@ def to_pr_context(pr: dict, repo: str) -> PRContext:
             actor=normalize_login(review.get("reviewer")),
             actor_type="Bot" if review.get("reviewerIsBot") else "User",
             timestamp=to_utc(review["submittedAt"]),
-            state=review.get("state"),
+                        state=review.get("state"),
+        ))
+
+    # Inline review threads: a thread starts with a comment that is not a reply;
+    # its replies tell us whether the PR author has answered it.
+    comments = pr.get("reviewComments") or []
+    replies = {}
+    for c in comments:
+        if c.get("inReplyTo") is not None:
+            replies.setdefault(c["inReplyTo"], []).append(normalize_login(c.get("author")))
+    for c in comments:
+        if c.get("inReplyTo") is not None or not c.get("createdAt"):
+            continue
+        events.append(PREvent(
+            event_type="review_comment",
+            actor=normalize_login(c.get("author")),
+            actor_type="Bot" if c.get("authorIsBot") else "User",
+            timestamp=to_utc(c["createdAt"]),
+            reply_actors=tuple(r for r in replies.get(c.get("id"), []) if r),
         ))
 
     return PRContext(
@@ -230,6 +272,17 @@ def merge_readiness(open_prs: list, request: AnalyzeRequest) -> list:
         if touched:
             recommendations.append(f"Touches quality hotspot(s) flagged by Quality Intelligence: {', '.join(touched)}. Review these files carefully.")
 
+        checks = pr.get("checks") or {}
+        details = checks.get("details") or {}
+        if checks.get("ci") or checks.get("merge_conflicts"):
+            ci_text = {
+                "pass": f"passing ({details.get('ciTotal', 0)} check(s))",
+                "fail": f"failing: {', '.join(details.get('ciFailing') or [])}",
+                "pending": f"still running: {', '.join(details.get('ciPending') or [])}",
+            }.get(checks.get("ci"), "no CI configured")
+            conflict_text = {"pass": "none", "fail": "conflicts with the base branch"}.get(checks.get("merge_conflicts"), "not yet computed by GitHub")
+            recommendations.append(f"Live GitHub status: CI {ci_text}; merge conflicts: {conflict_text}.")
+
         recommendations.append(assessment.disclaimer)
 
         insights.append(Insight(
@@ -249,10 +302,121 @@ def merge_readiness(open_prs: list, request: AnalyzeRequest) -> list:
 
 
 # ---------------------------------------------------------------------------
+# 3. AI-assisted code review (local LLM, prompt from code_review/ai_reviewer.py)
+# ---------------------------------------------------------------------------
+
+# Results are cached per (prompt, title, file, diff), so re-running the analysis
+# does not ask the model again about code it has already reviewed.
+_review_cache = {}
+
+
+def reviewable_files(pr: dict) -> list:
+    """Code files with a complete, reasonably small diff, smallest first."""
+
+    files = []
+    for f in pr.get("files") or []:
+        patch = f.get("patch") or ""
+        if not patch or f.get("status") == "removed" or "(truncated)" in patch:
+            continue
+        if Path(f.get("path") or "").suffix.lower() not in CODE_EXTENSIONS:
+            continue
+        if patch.count("\n") > CODE_REVIEW_MAX_PATCH_LINES:
+            continue
+        files.append(f)
+    return sorted(files, key=lambda f: len(f["patch"]))[:CODE_REVIEW_MAX_FILES]
+
+
+def review_file(client, pr: dict, f: dict):
+    key = hashlib.sha256(f"{DEFAULT_PROMPT_VERSION}|{pr.get('title')}|{f['path']}|{f['patch']}".encode("utf-8")).hexdigest()
+    if key in _review_cache:
+        return _review_cache[key]
+    result = run_review(pr.get("title") or "", f["path"], f["patch"], client=client)
+    if result.status != STATUS_MODEL_ERROR:  # never cache a connection failure
+        _review_cache[key] = result
+    return result
+
+
+def code_review(open_prs: list, request: AnalyzeRequest) -> list:
+    if not CODE_REVIEW_ENABLED:
+        return []
+
+    client = OllamaClient()
+    candidates = [(pr, files) for pr in open_prs if (files := reviewable_files(pr))][:CODE_REVIEW_MAX_PRS]
+
+    insights = []
+    for pr, files in candidates:
+        repo = _repo_of(pr, request)
+        target = Target(type="pullRequest", id=str(pr.get("number")), label=pr.get("title"))
+        results = []
+        for f in files:
+            result = review_file(client, pr, f)
+            if result.status == STATUS_MODEL_ERROR:
+                # The model is unreachable: report it once instead of failing the whole analysis.
+                insights.append(Insight(
+                    component=COMPONENT,
+                    type="code-review",
+                    title="AI code review unavailable",
+                    target=target,
+                    prediction=Prediction(label="AI review findings", value="not run"),
+                    severity="info",
+                    recommendations=[f"The local model could not be reached ({result.error}). Start Ollama and re-run the analysis."],
+                    evidence=[Evidence(source="github", ref=_pr_ref(pr, repo))],
+                    modelVersion=MODEL_VERSION,
+                ))
+                return insights
+            results.append((f, result))
+
+        findings = [(f, item) for f, result in results if result.status == STATUS_FINDINGS for item in result.findings]
+        invalid = [f["path"] for f, result in results if result.status == STATUS_INVALID]
+        worst = max((SEVERITY_ORDER.get(item.get("severity"), 1) for _, item in findings), default=0)
+
+        recommendations = [
+            f"{f['path']}:{item.get('line') or '?'} [{item.get('severity')}, {item.get('category')}] "
+            f"{item['finding']} Suggestion: {item['suggestion']}"
+            for f, item in findings
+        ]
+        if not findings:
+            recommendations.append("No supported issues found in the reviewed changes.")
+        if invalid:
+            recommendations.append(f"Skipped {len(invalid)} file(s) where the model returned an invalid response: {', '.join(invalid)}.")
+        recommendations.append(
+            f"Reviewed {len(results)} file(s): {', '.join(f['path'] for f, _ in results)}. Findings come from a local LLM "
+            f"({MODEL_NAME}, prompt {DEFAULT_PROMPT_VERSION}); confidence is the model's own estimate, not a calibrated "
+            "probability. A human reviewer decides."
+        )
+
+        insights.append(Insight(
+            component=COMPONENT,
+            type="code-review",
+            title=f"PR #{pr.get('number')}: AI code review",
+            target=target,
+            prediction=Prediction(label="AI review findings", value=len(findings), unit="finding(s)"),
+            severity={0: "info", 1: "low", 2: "medium", 3: "high"}[worst],
+            # Each finding as a bar: a longer red bar means the model is more confident the issue is real.
+            explanation=[
+                ExplanationItem(
+                    feature=f"{Path(f['path']).name}:{item.get('line') or '?'} {item.get('category')}",
+                    value=item.get("severity"),
+                    impact=-float(item["confidence"]),
+                )
+                for f, item in findings
+            ],
+            recommendations=recommendations,
+            evidence=[Evidence(source="github", ref=f"{_pr_ref(pr, repo)}:{f['path']}") for f, _ in results],
+            modelVersion=MODEL_VERSION,
+        ))
+    return insights
+
+
+# ---------------------------------------------------------------------------
 # Entry point called by app.py
 # ---------------------------------------------------------------------------
 
 def analyze(request: AnalyzeRequest) -> list[Insight]:
     open_prs = [pr for pr in request.context.get("pullRequests", []) if pr.get("number") is not None]
     history = request.context.get("history", [])
-    return recommend_reviewers(open_prs, history, request) + merge_readiness(open_prs, request)
+    return (
+        recommend_reviewers(open_prs, history, request)
+        + merge_readiness(open_prs, request)
+        + code_review(open_prs, request)
+    )

@@ -16,7 +16,7 @@ export const config = {
     { name: 'quality', url: env('QUALITY_SERVICE_URL', 'http://127.0.0.1:8003') },
     { name: 'pull-request', url: env('PR_SERVICE_URL', 'http://127.0.0.1:8004') },
   ],
-  serviceTimeoutMs: Number(env('SERVICE_TIMEOUT_MS', 60000)),
+  serviceTimeoutMs: Number(env('SERVICE_TIMEOUT_MS', 300000)),
 
   github: { token: env('GITHUB_TOKEN', '') },
   jira: {
