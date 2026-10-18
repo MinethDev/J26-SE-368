@@ -1,0 +1,4 @@
+model,accuracy,precision,recall,f1,roc_auc,pr_auc,config
+Logistic Regression,0.6512208657047724,0.5186147186147186,0.4607692307692307,0.4879837067209776,0.6402580795940171,0.528831439803943,StandardScaler + class_weight=balanced
+Gradient Boosting,0.6667591564927858,0.549748743718593,0.4207692307692308,0.4766884531590414,0.6492911992521369,0.5218262743161081,"{""learning_rate"": 0.05, ""max_depth"": 2, ""min_samples_leaf"": 5, ""n_estimators"": 100, ""subsample"": 1.0}"
+Random Forest,0.6309655937846836,0.489851150202977,0.556923076923077,0.5212383009359252,0.6365339543269231,0.5077395902074573,"{""class_weight"": ""balanced"", ""max_depth"": 10, ""max_features"": ""sqrt"", ""min_samples_leaf"": 2, ""n_estimators"": 300}"
