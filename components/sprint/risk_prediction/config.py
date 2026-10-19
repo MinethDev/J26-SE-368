@@ -8,6 +8,10 @@ DATA_DIR = PACKAGE_DIR.parent / "data"
 RESULTS_DIR = DATA_DIR / "risk"
 DATASET_PATH = RESULTS_DIR / "dataset.parquet"
 SELECTED_CONFIG_PATH = RESULTS_DIR / "selected_config.json"
+FROZEN_CONFIG_PATH = RESULTS_DIR / "frozen_config.json"
+TEST_RESULTS_PATH = RESULTS_DIR / "test_results.json"
+MODEL_PATH = RESULTS_DIR / "risk_model.joblib"
+MODEL_VERSION = "sprint-risk-v1"
 
 RANDOM_SEED = 42
 
