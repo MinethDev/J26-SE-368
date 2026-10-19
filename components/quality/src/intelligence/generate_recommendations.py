@@ -185,6 +185,19 @@ FEATURE_RECOMMENDATIONS = {
     },
 }
 
+ZERO_REQUIRES_NO_ACTION = {
+    "throw_count",
+    "catch_count",
+    "if_count",
+    "for_count",
+    "while_count",
+    "switch_count",
+    "case_count",
+    "new_count",
+    "import_count",
+    "method_count",
+}
+
 
 def priority_from_risk(probability):
     if probability >= 0.75:
@@ -200,6 +213,17 @@ def priority_from_risk(probability):
 
 
 def generate_file_recommendations(row):
+
+    feature_value = row.get(value_column)
+
+    if (
+        feature in ZERO_REQUIRES_NO_ACTION
+        and (
+            pd.isna(feature_value)
+            or float(feature_value) <= 0
+        )
+    ):
+
     recommendations = []
 
     seen_categories = set()

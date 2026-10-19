@@ -39,3 +39,5 @@ Thumbs.db
 
 # Generated merge-readiness results
 /components/pull-request/merge_readiness/data/
+
+/components/quality/data
