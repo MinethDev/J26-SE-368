@@ -1,0 +1,354 @@
+{
+  "benchmark": "devintel-code-review-planted-defects",
+  "split": "development",
+  "description": "Used for prompt development and iteration.",
+  "authored_by": "Assistant-generated for this project; not peer-authored.",
+  "line_numbering": "Expected lines are new-file line numbers derived from the hunk header.",
+  "cases": [
+    {
+      "pair_id": "dev-01",
+      "language": "python",
+      "file_path": "reports/summary.py",
+      "pr_title": "Add per-item totals to summary report",
+      "id": "dev-01-defect",
+      "label": "defect",
+      "diff": "@@ -18,3 +18,6 @@\n def build_summary(items):\n     lines = []\n+    for i in range(len(items) + 1):\n+        item = items[i]\n+        lines.append(f\"{item.name}: {item.total}\")\n     return \"\\n\".join(lines)",
+      "expected": {
+        "defect_type": "off_by_one",
+        "category": "correctness",
+        "acceptable_categories": [
+          "correctness",
+          "input_validation"
+        ],
+        "line": 20,
+        "description": "Loop runs one past the end and items[i] raises IndexError on the last iteration."
+      }
+    },
+    {
+      "pair_id": "dev-01",
+      "language": "python",
+      "file_path": "reports/summary.py",
+      "pr_title": "Add per-item totals to summary report",
+      "id": "dev-01-clean",
+      "label": "clean",
+      "diff": "@@ -18,3 +18,6 @@\n def build_summary(items):\n     lines = []\n+    for i in range(len(items)):\n+        item = items[i]\n+        lines.append(f\"{item.name}: {item.total}\")\n     return \"\\n\".join(lines)",
+      "expected": null
+    },
+    {
+      "pair_id": "dev-02",
+      "language": "typescript",
+      "file_path": "src/services/userService.ts",
+      "pr_title": "Show display name in header",
+      "id": "dev-02-defect",
+      "label": "defect",
+      "diff": "@@ -41,2 +41,4 @@\n export function getDisplayName(users: User[], id: string): string {\n+  const user = users.find((u) => u.id === id);\n+  return user.profile.displayName;\n }",
+      "expected": {
+        "defect_type": "null_dereference",
+        "category": "null_safety",
+        "acceptable_categories": [
+          "correctness",
+          "null_safety"
+        ],
+        "line": 43,
+        "description": "Array.find can return undefined; dereferencing user throws when no user matches."
+      }
+    },
+    {
+      "pair_id": "dev-02",
+      "language": "typescript",
+      "file_path": "src/services/userService.ts",
+      "pr_title": "Show display name in header",
+      "id": "dev-02-clean",
+      "label": "clean",
+      "diff": "@@ -41,2 +41,7 @@\n export function getDisplayName(users: User[], id: string): string {\n+  const user = users.find((u) => u.id === id);\n+  if (!user) {\n+    return \"\";\n+  }\n+  return user.profile.displayName;\n }",
+      "expected": null
+    },
+    {
+      "pair_id": "dev-03",
+      "language": "php",
+      "file_path": "src/Repository/UserRepository.php",
+      "pr_title": "Load user by id from request",
+      "id": "dev-03-defect",
+      "label": "defect",
+      "diff": "@@ -27,3 +27,6 @@\n     public function findFromRequest(PDO $db): ?array\n     {\n+        $id = $_GET['id'];\n+        $result = $db->query(\"SELECT * FROM users WHERE id = \" . $id);\n+        return $result->fetch(PDO::FETCH_ASSOC) ?: null;\n     }",
+      "expected": {
+        "defect_type": "sql_injection",
+        "category": "security",
+        "acceptable_categories": [
+          "input_validation",
+          "security"
+        ],
+        "line": 30,
+        "description": "User input is concatenated into SQL, allowing SQL injection."
+      }
+    },
+    {
+      "pair_id": "dev-03",
+      "language": "php",
+      "file_path": "src/Repository/UserRepository.php",
+      "pr_title": "Load user by id from request",
+      "id": "dev-03-clean",
+      "label": "clean",
+      "diff": "@@ -27,3 +27,7 @@\n     public function findFromRequest(PDO $db): ?array\n     {\n+        $id = $_GET['id'];\n+        $statement = $db->prepare(\"SELECT * FROM users WHERE id = :id\");\n+        $statement->execute(['id' => $id]);\n+        return $statement->fetch(PDO::FETCH_ASSOC) ?: null;\n     }",
+      "expected": null
+    },
+    {
+      "pair_id": "dev-04",
+      "language": "csharp",
+      "file_path": "src/Designer/Services/TemplateLoader.cs",
+      "pr_title": "Read template files from disk",
+      "id": "dev-04-defect",
+      "label": "defect",
+      "diff": "@@ -52,3 +52,5 @@\n         public string LoadTemplate(string path)\n         {\n+            var reader = new StreamReader(path);\n+            return reader.ReadToEnd();\n         }",
+      "expected": {
+        "defect_type": "resource_leak",
+        "category": "resource_management",
+        "acceptable_categories": [
+          "error_handling",
+          "resource_management"
+        ],
+        "line": 54,
+        "description": "StreamReader is never disposed, leaking the file handle."
+      }
+    },
+    {
+      "pair_id": "dev-04",
+      "language": "csharp",
+      "file_path": "src/Designer/Services/TemplateLoader.cs",
+      "pr_title": "Read template files from disk",
+      "id": "dev-04-clean",
+      "label": "clean",
+      "diff": "@@ -52,3 +52,5 @@\n         public string LoadTemplate(string path)\n         {\n+            using var reader = new StreamReader(path);\n+            return reader.ReadToEnd();\n         }",
+      "expected": null
+    },
+    {
+      "pair_id": "dev-05",
+      "language": "python",
+      "file_path": "analytics/metrics.py",
+      "pr_title": "Add average response time metric",
+      "id": "dev-05-defect",
+      "label": "defect",
+      "diff": "@@ -64,1 +64,3 @@\n def average_response_time(samples):\n+    total = sum(sample.duration for sample in samples)\n+    return total / len(samples)",
+      "expected": {
+        "defect_type": "divide_by_zero",
+        "category": "correctness",
+        "acceptable_categories": [
+          "correctness",
+          "input_validation"
+        ],
+        "line": 66,
+        "description": "Division by len(samples) raises ZeroDivisionError for an empty list."
+      }
+    },
+    {
+      "pair_id": "dev-05",
+      "language": "python",
+      "file_path": "analytics/metrics.py",
+      "pr_title": "Add average response time metric",
+      "id": "dev-05-clean",
+      "label": "clean",
+      "diff": "@@ -64,1 +64,5 @@\n def average_response_time(samples):\n+    if not samples:\n+        return 0.0\n+    total = sum(sample.duration for sample in samples)\n+    return total / len(samples)",
+      "expected": null
+    },
+    {
+      "pair_id": "dev-06",
+      "language": "typescript",
+      "file_path": "src/api/client.ts",
+      "pr_title": "Fetch project settings from API",
+      "id": "dev-06-defect",
+      "label": "defect",
+      "diff": "@@ -15,2 +15,4 @@\n export async function loadSettings(projectId: string): Promise<Settings> {\n+  const response = fetch(`/api/projects/${projectId}/settings`);\n+  return response.json();\n }",
+      "expected": {
+        "defect_type": "missing_await",
+        "category": "correctness",
+        "acceptable_categories": [
+          "correctness",
+          "error_handling"
+        ],
+        "line": 16,
+        "description": "fetch returns a Promise; calling .json() on it without await fails."
+      }
+    },
+    {
+      "pair_id": "dev-06",
+      "language": "typescript",
+      "file_path": "src/api/client.ts",
+      "pr_title": "Fetch project settings from API",
+      "id": "dev-06-clean",
+      "label": "clean",
+      "diff": "@@ -15,2 +15,4 @@\n export async function loadSettings(projectId: string): Promise<Settings> {\n+  const response = await fetch(`/api/projects/${projectId}/settings`);\n+  return response.json();\n }",
+      "expected": null
+    },
+    {
+      "pair_id": "dev-07",
+      "language": "python",
+      "file_path": "auth/permissions.py",
+      "pr_title": "Restrict settings page to administrators",
+      "id": "dev-07-defect",
+      "label": "defect",
+      "diff": "@@ -33,1 +33,4 @@\n def open_settings(user, request):\n+    if not user.is_admin:\n+        return render_settings(request)\n+    raise PermissionDenied(\"Administrators only\")",
+      "expected": {
+        "defect_type": "inverted_condition",
+        "category": "security",
+        "acceptable_categories": [
+          "correctness",
+          "security"
+        ],
+        "line": 34,
+        "description": "Condition is inverted: non-admins get the settings page and admins are denied."
+      }
+    },
+    {
+      "pair_id": "dev-07",
+      "language": "python",
+      "file_path": "auth/permissions.py",
+      "pr_title": "Restrict settings page to administrators",
+      "id": "dev-07-clean",
+      "label": "clean",
+      "diff": "@@ -33,1 +33,4 @@\n def open_settings(user, request):\n+    if user.is_admin:\n+        return render_settings(request)\n+    raise PermissionDenied(\"Administrators only\")",
+      "expected": null
+    },
+    {
+      "pair_id": "dev-08",
+      "language": "php",
+      "file_path": "includes/class-subscription.php",
+      "pr_title": "Skip inactive subscriptions",
+      "id": "dev-08-defect",
+      "label": "defect",
+      "diff": "@@ -88,2 +88,6 @@\n     public function should_notify( $subscription ) {\n+        if ( $subscription->status = 'active' ) {\n+            return true;\n+        }\n+        return false;\n     }",
+      "expected": {
+        "defect_type": "assignment_in_condition",
+        "category": "correctness",
+        "acceptable_categories": [
+          "correctness"
+        ],
+        "line": 89,
+        "description": "Assignment instead of comparison: the condition is always true and overwrites the status."
+      }
+    },
+    {
+      "pair_id": "dev-08",
+      "language": "php",
+      "file_path": "includes/class-subscription.php",
+      "pr_title": "Skip inactive subscriptions",
+      "id": "dev-08-clean",
+      "label": "clean",
+      "diff": "@@ -88,2 +88,6 @@\n     public function should_notify( $subscription ) {\n+        if ( 'active' === $subscription->status ) {\n+            return true;\n+        }\n+        return false;\n     }",
+      "expected": null
+    },
+    {
+      "pair_id": "dev-09",
+      "language": "csharp",
+      "file_path": "src/Cli/Program.cs",
+      "pr_title": "Accept repository name argument",
+      "id": "dev-09-defect",
+      "label": "defect",
+      "diff": "@@ -9,3 +9,5 @@\n         public static int Main(string[] args)\n         {\n+            var repository = args[0];\n+            return Run(repository);\n         }",
+      "expected": {
+        "defect_type": "unchecked_index",
+        "category": "input_validation",
+        "acceptable_categories": [
+          "correctness",
+          "input_validation",
+          "null_safety"
+        ],
+        "line": 11,
+        "description": "args[0] throws IndexOutOfRangeException when no argument is given."
+      }
+    },
+    {
+      "pair_id": "dev-09",
+      "language": "csharp",
+      "file_path": "src/Cli/Program.cs",
+      "pr_title": "Accept repository name argument",
+      "id": "dev-09-clean",
+      "label": "clean",
+      "diff": "@@ -9,3 +9,10 @@\n         public static int Main(string[] args)\n         {\n+            if (args.Length == 0)\n+            {\n+                Console.Error.WriteLine(\"Usage: cli <repository>\");\n+                return 1;\n+            }\n+            var repository = args[0];\n+            return Run(repository);\n         }",
+      "expected": null
+    },
+    {
+      "pair_id": "dev-10",
+      "language": "python",
+      "file_path": "storage/save.py",
+      "pr_title": "Persist draft documents",
+      "id": "dev-10-defect",
+      "label": "defect",
+      "diff": "@@ -21,1 +21,5 @@\n def save_draft(document, store):\n+    try:\n+        store.write(document.id, document.serialize())\n+    except Exception:\n+        pass",
+      "expected": {
+        "defect_type": "swallowed_exception",
+        "category": "error_handling",
+        "acceptable_categories": [
+          "error_handling"
+        ],
+        "line": 25,
+        "description": "All exceptions are silently ignored, so failed saves are lost without notice."
+      }
+    },
+    {
+      "pair_id": "dev-10",
+      "language": "python",
+      "file_path": "storage/save.py",
+      "pr_title": "Persist draft documents",
+      "id": "dev-10-clean",
+      "label": "clean",
+      "diff": "@@ -21,1 +21,6 @@\n def save_draft(document, store):\n+    try:\n+        store.write(document.id, document.serialize())\n+    except Exception:\n+        logger.exception(\"Failed to save draft %s\", document.id)\n+        raise",
+      "expected": null
+    },
+    {
+      "pair_id": "dev-11",
+      "language": "typescript",
+      "file_path": "src/components/slider/utils.ts",
+      "pr_title": "Clamp slider value to bounds",
+      "id": "dev-11-defect",
+      "label": "defect",
+      "diff": "@@ -4,3 +4,7 @@\n export function clamp(value: number, min: number, max: number): number {\n   return Math.min(Math.max(value, min), max);\n }\n+\n+export function normalizeSliderValue(raw: number, bounds: Bounds): number {\n+  return clamp(bounds.min, raw, bounds.max);\n+}",
+      "expected": {
+        "defect_type": "swapped_arguments",
+        "category": "correctness",
+        "acceptable_categories": [
+          "correctness"
+        ],
+        "line": 9,
+        "description": "Arguments are swapped: clamp expects (value, min, max)."
+      }
+    },
+    {
+      "pair_id": "dev-11",
+      "language": "typescript",
+      "file_path": "src/components/slider/utils.ts",
+      "pr_title": "Clamp slider value to bounds",
+      "id": "dev-11-clean",
+      "label": "clean",
+      "diff": "@@ -4,3 +4,7 @@\n export function clamp(value: number, min: number, max: number): number {\n   return Math.min(Math.max(value, min), max);\n }\n+\n+export function normalizeSliderValue(raw: number, bounds: Bounds): number {\n+  return clamp(raw, bounds.min, bounds.max);\n+}",
+      "expected": null
+    },
+    {
+      "pair_id": "dev-12",
+      "language": "tsx",
+      "file_path": "src/components/TodoList.tsx",
+      "pr_title": "Add item button to todo list",
+      "id": "dev-12-defect",
+      "label": "defect",
+      "diff": "@@ -12,2 +12,6 @@\n   const [items, setItems] = useState<string[]>([]);\n \n+  const addItem = (text: string) => {\n+    items.push(text);\n+    setItems(items);\n+  };",
+      "expected": {
+        "defect_type": "state_mutation",
+        "category": "correctness",
+        "acceptable_categories": [
+          "correctness"
+        ],
+        "line": 15,
+        "description": "React state is mutated in place and set to the same reference, so the component does not re-render."
+      }
+    },
+    {
+      "pair_id": "dev-12",
+      "language": "tsx",
+      "file_path": "src/components/TodoList.tsx",
+      "pr_title": "Add item button to todo list",
+      "id": "dev-12-clean",
+      "label": "clean",
+      "diff": "@@ -12,2 +12,5 @@\n   const [items, setItems] = useState<string[]>([]);\n \n+  const addItem = (text: string) => {\n+    setItems([...items, text]);\n+  };",
+      "expected": null
+    }
+  ]
+}

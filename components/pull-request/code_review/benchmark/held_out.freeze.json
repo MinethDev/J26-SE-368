@@ -1,0 +1,10 @@
+{
+  "file": "held_out.json",
+  "sha256_lf_normalized": "c17b2a4c461d76aededd68dc9378ecef9029f33cf77c0ada7a8715e537df2c35",
+  "cases": 24,
+  "defect_cases": 12,
+  "clean_cases": 12,
+  "frozen_at_utc": "2026-10-12T11:15:32+00:00",
+  "frozen_before": "Prompt v2 was written; no held-out case has been sent to any model.",
+  "authorship": "Assistant-authored; no peer-authored cases were available (documented limitation)."
+}
