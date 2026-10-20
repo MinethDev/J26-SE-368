@@ -25,7 +25,7 @@ All tools are normalised into these MongoDB collections. Every document has:
 | `developers` | GitHub, Jira | `login`, `name`, `email` |
 | `repositories` | GitHub | `fullName`, `defaultBranch` |
 | `pullrequests` | GitHub | `number`, `title`, `body`, `author`, `state`, `createdAt`, `mergedAt`, `closedAt`, `files[]`, `reviews[]`, `additions`, `deletions` |
-| `issues` | Jira | `key`, `summary`, `type`, `status`, `storyPoints`, `assignee`, `sprintId`, `createdAt`, `resolvedAt` |
+| `issues` | Jira | `key`, `summary`, `type`, `status`, `storyPoints`, `assignee`, `sprintId`, `createdAt`,`resolvedAt`, `changelog[]` (`field` 'Sprint' / 'status' / 'Story Points', `from`, `to`, `at`) |
 | `sprints` | Jira | `name`, `state`, `startDate`, `endDate`, `completeDate`, `goal` |
 | `qualitysnapshots` | SonarQube | `path`, `metrics {ncloc, complexity, ...}`, `issueCounts`, `snapshotAt` |
 | `requirements` | Upload | `fileName`, `rawText`, `items[]` |
