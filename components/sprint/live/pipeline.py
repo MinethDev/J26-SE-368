@@ -102,6 +102,8 @@ def _burndown(history: LiveHistory, sprint_id: int, now: pd.Timestamp) -> list[d
     rows = []
     for day in range(days + 1):
         t = min(sprint["start_date"] + pd.Timedelta(days=day), sprint["end_date"])
+        if day == days and now > t:  # sprint past its end: its last point shows the state as of now
+            t = now
         if t > now:
             break
         s = _state(history, sprint_id, t)
@@ -127,7 +129,8 @@ def analyze_sprints(context: dict, planning_avg_points: float | None = None) -> 
     for sprint_id, sprint in history.sprints.iterrows():
         if sprint["sprint_state"] != "active" or not (sprint["start_date"] <= now):
             continue
-        t = min(now, sprint["end_date"])
+        # An active sprint past its end date is measured as of now: Jira's current state is the best we know.
+        t = now
         s = _state(history, sprint_id, t)
         health = assess(s)
         members = [i for i in history.candidates[sprint_id] if history.in_sprint(i, sprint["jira_sprint_id"], t)]

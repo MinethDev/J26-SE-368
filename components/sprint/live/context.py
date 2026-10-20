@@ -58,10 +58,17 @@ def build_tables(context: dict) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFram
             continue
         issue_lookup[n] = i
         points = i.get("storyPoints")
+        resolved = to_time(i.get("resolvedAt"))
+        if resolved is None and i.get("statusCategory") == "Done":
+            # Done but Jira gave no resolution date (e.g. the platform's sample data): use the last update,
+            # or for a finished sprint its end, so the work still counts as delivered.
+            s = sprint_lookup[sprint_id]
+            resolved = to_time(i.get("updatedAt")) or (
+                (to_time(s.get("completeDate")) or to_time(s.get("endDate"))) if (s.get("state") or "").lower() == "closed" else None)
         issue_rows.append({
             "issue_id": n, "issue_key": i.get("key"), "status": i.get("status") or i.get("statusCategory"),
             "status_category": i.get("statusCategory"), "assignee": i.get("assignee"),
-            "creation_date": created, "resolution_date": to_time(i.get("resolvedAt")),
+            "creation_date": created, "resolution_date": resolved,
             "story_points": float(points) if isinstance(points, (int, float)) else None,
             "project_id": PROJECT_ID, "sprint_id": sprint_id,
         })

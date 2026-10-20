@@ -173,3 +173,18 @@ input:focus-visible, select:focus-visible, .btn:focus-visible, a:focus-visible {
   .insight-grid { grid-template-columns: 1fr; }
   .field-row { grid-template-columns: 1fr; }
 }
+/* Sprint Intelligence page */
+.sprint-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 14px; margin-bottom: 14px; }
+.sprint-tile { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.tile-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+section > .card + .card, .sprint-grid + .card { margin-top: 14px; }
+.sprint-recs { margin: 4px 0 6px; padding-left: 20px; }
+.sprint-recs li { margin-bottom: 6px; }
+.share-bar { display: inline-block; width: 90px; height: 8px; margin-right: 8px; border-radius: 4px; background: var(--surface-hover); overflow: hidden; vertical-align: middle; }
+.share-bar span { display: block; height: 100%; background: var(--accent); }
+.sprint-report { font-size: 13.5px; margin-top: 10px; }
+.sprint-report p { margin: 4px 0; }
+.sprint-report .section-label { margin-top: 12px; }
+.sprint-report ul, .sprint-report ol { margin: 4px 0; padding-left: 20px; }
+.sprint-report li { margin-bottom: 4px; }
+details.card summary { cursor: pointer; }
