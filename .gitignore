@@ -45,3 +45,4 @@ Thumbs.db
 
 #local SonarQube configuration file
 sonar-project.properties
+components/sprint/data/
