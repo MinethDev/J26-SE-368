@@ -1209,3 +1209,8 @@ h2 {
   justify-content: flex-end;
   margin-left: auto;
 }
+
+.stale {
+  color: var(--sev-medium);
+  font-weight: 600;
+}

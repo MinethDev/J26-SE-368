@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom';
 import { useProject } from '../lib/project.jsx';
 import { useApi } from '../lib/useApi.js';
 import { COMPONENTS, componentByKey } from '../lib/components.js';
-import { isDisclaimer } from '../lib/format.js';
+import { isDisclaimer, timeAgo } from '../lib/format.js';
 import RunAnalysisButton from '../components/RunAnalysisButton.jsx';
 import { SeverityBadge, StatusPill } from '../components/Badge.jsx';
 
@@ -105,7 +105,7 @@ export default function Overview() {
         <p className="muted small flow-note">
           One analysis runs the components in order 1 → 4, and each one receives the insights produced before it
           (planning feeds sprint, quality feeds pull request).
-          {lastRun && <> Last run {new Date(lastRun.startedAt).toLocaleString()} by {lastRun.triggeredBy}: {lastRun.status}.</>}
+          {lastRun && <> Last run {timeAgo(lastRun.startedAt)} by {lastRun.triggeredBy}: {lastRun.status}.</>}
         </p>
       </section>
 
