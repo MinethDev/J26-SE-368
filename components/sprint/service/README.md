@@ -1,15 +1,15 @@
 # sprint service (port 8002)
 
-The platform's AI Orchestrator calls this service. It currently returns **stub** insights
-(marked with a dashed "stub" badge on the dashboard) so the whole system works end to end today.
+The platform's AI Orchestrator calls this service. It runs the full Sprint Intelligence pipeline
+(see [../README.md](../README.md)) on the platform's Jira data and returns real insights (`isStub` false).
 
 ## Files
 
-| File | Edit it? | Purpose |
-|---|---|---|
-| `analysis.py` | **Yes** | Your logic. `analyze(request)` receives the context and returns a list of `Insight` |
-| `app.py` | Rarely | HTTP endpoints `GET /health` and `POST /analyze` (Contract 3) |
-| `contract.py` | **No** | Identical in every service. The shared output format (Contract 2) |
+| File | Purpose |
+|---|---|
+| `analysis.py` | Builds insights from `live/pipeline.py`: risk, health, burndown, workload, report |
+| `app.py` | HTTP endpoints `GET /health` and `POST /analyze` (Contract 3) |
+| `contract.py` | Identical in every service. The shared output format (Contract 2) |
 
 ## Run on its own
 
@@ -19,15 +19,18 @@ pip install -r requirements.txt
 uvicorn app:app --reload --port 8002
 ```
 
-Open `http://127.0.0.1:8002/docs` to send a test request from the browser.
+Open `http://127.0.0.1:8002/docs` to send a test request. `GET /health` shows the model version:
+`sprint-risk-v1` when the trained model is found, `sprint-health-rules-v1` when it falls back to the
+health score.
 
-## Replacing the stub with your model
+## Model file
 
-1. Train and evaluate your model in `../research/`. Save the trained model (e.g. `joblib.dump`) to a file the service can load; don't commit large files.
-2. In `analysis.py`, load the model **once** at module level, then in `analyze()` build features from `request.context`, predict, and compute explanations (e.g. SHAP values).
-3. Return one `Insight` per thing you predict about. Put SHAP values in `explanation`, suggested actions in `recommendations`, and set `isStub=False`.
-4. Bump `MODEL_VERSION` whenever the model or its settings change.
-5. Add new Python packages to `requirements.txt`.
-6. Check you still follow the contracts: `python components/test_contract.py` from the repo root.
+Loaded once, from the first of: `DEVINTEL_SPRINT_MODEL`, `../data/risk/risk_model.joblib` (a local
+training run), `../models/risk_model.joblib` (the released model in Git).
 
-What arrives in `request.context` is listed at the top of `analysis.py` and in `docs/CONTRACTS.md`. If you need more data, change `platform/server/src/orchestrator/contextBuilders.js` and tell the team.
+## Checks
+
+```powershell
+python -m unittest discover -s tests      # from components/sprint: 34 tests
+python components/test_contract.py        # from the repo root: all four services follow the contracts
+```
