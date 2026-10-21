@@ -295,3 +295,15 @@ h2 { letter-spacing: -.005em; }
 
 /* ---------- Login notice ---------- */
 .notice { margin: 4px 0 0; padding: 8px 10px; border-radius: 6px; background: var(--surface-hover); border: 1px solid var(--border); color: var(--text); }
+
+/* ---------- Login and loading screen ---------- */
+.login { padding: 28px 28px 24px; box-shadow: 0 8px 30px rgba(15, 23, 42, .08); }
+.login .brand { padding: 0 0 18px; margin: 0 0 18px; border-bottom: 1px solid var(--border); }
+.login .brand-name { color: var(--text); }
+.login .brand-sub { color: var(--text-muted); opacity: 1; }
+.login-title { font-size: 20px; margin: 0 0 4px; }
+.login-intro { margin: 0 0 8px; }
+.app-loading { min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; background: var(--bg); }
+.app-loading .brand-mark { width: 40px; height: 40px; border-radius: 10px; animation: app-pulse 1.2s ease-in-out infinite; }
+@keyframes app-pulse { 50% { opacity: .55; } }
+@media (prefers-reduced-motion: reduce) { .app-loading .brand-mark { animation: none; } }

@@ -28,9 +28,13 @@ export default function Login() {
           <span className="brand-mark" aria-hidden="true">
             DI
           </span>
-          <span>DevIntel</span>
+          <span className="brand-text">
+            <span className="brand-name">DevIntel</span>
+            <span className="brand-sub">Development intelligence</span>
+          </span>
         </div>
-        <p className="muted">
+        <h1 className="login-title">Sign in</h1>
+        <p className="muted small login-intro">
           AI-driven integrated development analytics and decision support
         </p>
         <label className="field-label" htmlFor="email">
