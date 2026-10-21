@@ -1214,3 +1214,11 @@ h2 {
   color: var(--sev-medium);
   font-weight: 600;
 }
+
+.source-grid > .card + .card {
+  margin-top: 0;
+}
+
+.source-grid .source {
+  height: 100%;
+}
