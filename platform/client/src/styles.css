@@ -292,3 +292,6 @@ h2 { letter-spacing: -.005em; }
 .service-banner .small { margin-top: 2px; opacity: .9; }
 .service-banner .btn { flex-shrink: 0; }
 :root[data-theme='dark'] .service-banner { background: #2b2210; border-color: #6b5320; border-left-color: #f59e0b; color: #f8dfa8; }
+
+/* ---------- Login notice ---------- */
+.notice { margin: 4px 0 0; padding: 8px 10px; border-radius: 6px; background: var(--surface-hover); border: 1px solid var(--border); color: var(--text); }
