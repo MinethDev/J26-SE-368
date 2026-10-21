@@ -26,7 +26,7 @@ export const COMPONENTS = [
     path: '/pull-requests',
     name: 'Pull Request',
     owner: 'Perera W. M. M.',
-    summary: 'PR summaries, reviewer recommendations, code-review findings and merge-readiness.',
+    summary: 'Recommended reviewers, AI code review and merge readiness for every open pull request.',
   },
 ];
 
