@@ -24,12 +24,18 @@ from sprint_health.config import MISSED_THRESHOLD
 from sprint_health.health import assess, delivered_share
 
 
+# The released model is committed here so teammates can run the service without retraining.
+SHIPPED_MODEL_PATH = Path(__file__).resolve().parent.parent / "models" / "risk_model.joblib"
+
+
 @lru_cache(maxsize=1)
 def load_model() -> dict | None:
-    """The trained risk model (run_risk_prediction.py final). None when it hasn't been trained on
-    this machine: data/ is not in Git, so teammates and CI run on the health score only."""
-    path = Path(os.getenv("DEVINTEL_SPRINT_MODEL", MODEL_PATH))
-    if not path.exists():
+    """The trained risk model (run_risk_prediction.py final). Looks in DEVINTEL_SPRINT_MODEL, then
+    data/risk/ (a fresh local training run), then models/ (the copy in Git). None if there is none:
+    the service then falls back to the health score."""
+    candidates = [os.getenv("DEVINTEL_SPRINT_MODEL"), MODEL_PATH, SHIPPED_MODEL_PATH]
+    path = next((Path(p) for p in candidates if p and Path(p).exists()), None)
+    if path is None:
         return None
     import joblib
     return joblib.load(path)
