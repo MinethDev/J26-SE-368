@@ -39,4 +39,12 @@ Thumbs.db
 
 # Generated merge-readiness results
 /components/pull-request/merge_readiness/data/
+
+#quality component benchmark datasets
+/components/quality/data
+
+#local SonarQube configuration file
+sonar-project.properties
 components/sprint/data/
+platform/server/.env
+.scannerwork/
