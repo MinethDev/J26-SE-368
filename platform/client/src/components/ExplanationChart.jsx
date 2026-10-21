@@ -2,7 +2,8 @@ import { Bar, BarChart, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis, Refere
 
 // Shared explainability widget: horizontal bars of feature contributions (e.g. SHAP values).
 // Positive impact pushes the prediction up, negative pulls it down.
-export default function ExplanationChart({ items = [] }) {
+// upIsBad: colour upward pushes red (e.g. for a risk, where higher is worse).
+export default function ExplanationChart({ items = [], upIsBad = false }) {
   if (!items.length) return null;
   const data = [...items].sort((a, b) => Math.abs(b.impact) - Math.abs(a.impact)).slice(0, 8);
   const height = 28 * data.length + 24;
@@ -22,7 +23,7 @@ export default function ExplanationChart({ items = [] }) {
           />
           <Bar dataKey="impact" radius={[0, 3, 3, 0]} barSize={14}>
             {data.map((d) => (
-              <Cell key={d.feature} fill={d.impact >= 0 ? 'var(--positive)' : 'var(--negative)'} />
+              <Cell key={d.feature} fill={(d.impact >= 0) !== upIsBad ? 'var(--positive)' : 'var(--negative)'} />
             ))}
           </Bar>
         </BarChart>

@@ -35,6 +35,20 @@ async function pageAll(path, key) {
   }
   return out;
 }
+// Only the change history the sprint component needs: sprint moves, status changes and story points.
+// Sprint from/to hold comma-separated Jira sprint ids and status from/to hold status ids (the ids are
+// stable when statuses are renamed); story points are only in fromString/toString.
+export function toChangelog(raw, storyPointsField) {
+  const out = [];
+  for (const history of raw.changelog?.histories || []) {
+    for (const item of history.items || []) {
+      const isPoints = item.fieldId === storyPointsField || ['story points', 'story point estimate'].includes(String(item.field).toLowerCase());
+      if (isPoints) out.push({ field: 'Story Points', from: item.fromString ?? null, to: item.toString ?? null, at: history.created });
+      else if (item.field === 'Sprint' || item.field === 'status') out.push({ field: item.field, from: item.from ?? null, to: item.to ?? null, at: history.created });
+    }
+  }
+  return out.sort((a, b) => new Date(a.at) - new Date(b.at));
+}
 
 export async function syncJira(project) {
   const boardId = project.jira?.boardId;
@@ -73,12 +87,14 @@ export async function syncJira(project) {
       createdAt: f.created,
       updatedAt: f.updated,
       resolvedAt: f.resolutiondate,
+      changelog: toChangelog(raw, sp),
     };
   };
 
   const issues = new Map();
   for (const s of sprints) {
-    const sprintIssues = await pageAll(`/rest/agile/1.0/sprint/${s.id}/issue?fields=${fields}`, 'issues');
+        // expand=changelog: the sprint component rebuilds what the sprint held on each day from it.
+    const sprintIssues = await pageAll(`/rest/agile/1.0/sprint/${s.id}/issue?fields=${fields}&expand=changelog`, 'issues');
     sprintIssues.forEach((raw) => issues.set(raw.id, toIssue(raw, s.id)));
   }
   const backlog = await pageAll(`/rest/agile/1.0/board/${boardId}/backlog?fields=${fields}`, 'issues');

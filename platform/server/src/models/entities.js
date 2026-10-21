@@ -80,6 +80,8 @@ export const Issue = entity('Issue', {
   createdAt: Date,
   updatedAt: Date,
   resolvedAt: Date,
+    // Jira change history for sprint, status and story point changes (used by the sprint component).
+  changelog: [{ _id: false, field: String, from: String, to: String, at: Date }],
 });
 
 export const Sprint = entity('Sprint', {
