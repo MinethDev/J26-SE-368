@@ -286,3 +286,9 @@ h2 { letter-spacing: -.005em; }
 .icon-button { width: 38px; padding: 0; }
 .theme-toggle:hover, .icon-button:hover { background: rgba(255,255,255,.11); color: var(--sidebar-active); }
 .theme-toggle:focus-visible, .icon-button:focus-visible, .sidebar nav a:focus-visible, .sidebar select:focus-visible { outline: 2px solid #8fb0ff; outline-offset: 2px; }
+
+/* ---------- Service status banner ---------- */
+.service-banner { display: flex; align-items: center; justify-content: space-between; gap: 16px; max-width: 1180px; margin: 0 0 20px; padding: 12px 16px; border-radius: var(--radius); border: 1px solid #f0c36d; border-left: 4px solid #d97706; background: #fff8e6; color: #5c3b00; }
+.service-banner .small { margin-top: 2px; opacity: .9; }
+.service-banner .btn { flex-shrink: 0; }
+:root[data-theme='dark'] .service-banner { background: #2b2210; border-color: #6b5320; border-left-color: #f59e0b; color: #f8dfa8; }
