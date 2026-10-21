@@ -10,7 +10,8 @@ context received from the orchestrator:
   history:      past PRs  [{repo, number, title, author, createdAt,
                             reviews: [{reviewer, reviewerIsBot, state, submittedAt}]}]
 upstream:
-  quality: insights from the quality component in this run (file hotspots)
+  quality: insights from the quality component in this run (file hotspots);
+           a PR that changes a hotspot file is flagged on its merge-readiness card
 """
 
 import hashlib
