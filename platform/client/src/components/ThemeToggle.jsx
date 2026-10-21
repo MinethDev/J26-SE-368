@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { getTheme, saveTheme } from '../lib/theme.js';
+import { IconMoon, IconSun } from './Icons.jsx';
 
 // One button that switches between light and dark mode.
 export default function ThemeToggle() {
@@ -13,7 +14,8 @@ export default function ThemeToggle() {
 
   return (
     <button type="button" className="theme-toggle" onClick={toggle} aria-label={`Switch to ${next} mode`} title={`Switch to ${next} mode`}>
-      <span aria-hidden="true">{theme === 'dark' ? '☀' : '☾'}</span> {theme === 'dark' ? 'Light mode' : 'Dark mode'}
+      {theme === 'dark' ? <IconSun /> : <IconMoon />}
+      <span>{theme === 'dark' ? 'Light mode' : 'Dark mode'}</span>
     </button>
   );
 }
