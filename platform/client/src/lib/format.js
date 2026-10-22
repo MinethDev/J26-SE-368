@@ -23,7 +23,7 @@ export function evidenceHref({ source, ref } = {}) {
 }
 
 // Insight types where a higher prediction is worse (a risk), so upward pushes are shown in red.
-export const RISK_TYPES = new Set(['quality-hotspot', 'sprint-risk']);
+export const RISK_TYPES = new Set(['quality-hotspot', 'sprint-risk', 'planning-delay-risk']);
 
 // Recommendations that are a fixed disclaimer rather than an action.
 export const isDisclaimer = (text) => typeof text === 'string' && /^decision support only/i.test(text.trim());

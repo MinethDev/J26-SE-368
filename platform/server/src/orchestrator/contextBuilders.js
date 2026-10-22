@@ -1,18 +1,20 @@
 // Gathers the data each component needs from the common data model (Contract 1)
 // and shapes it into the `context` of its POST /analyze request (Contract 3).
 // Component owners: if you need more fields, add them here and update docs/CONTRACTS.md.
-import { Issue, PullRequest, QualitySnapshot, Repository, Requirement, Sprint } from '../models/index.js';
+import { Issue, Project, PullRequest, QualitySnapshot, Repository, Requirement, Sprint } from '../models/index.js';
 
 const MAX_PATCH_CHARS = 4000; // keep request size reasonable for LLM-based analysis
 
 const lean = (query) => query.select('-raw -__v').lean();
 
 async function planning(projectId) {
-  const [requirements, issues] = await Promise.all([
+  const [project, requirements, issues, sprints] = await Promise.all([
+    lean(Project.findOne({ key: projectId })),
     lean(Requirement.find({ projectId }).sort({ syncedAt: -1 }).limit(10)),
     lean(Issue.find({ projectId }).sort({ createdAt: -1 }).limit(1000)),
+    lean(Sprint.find({ projectId }).sort({ startDate: 1 })),
   ]);
-  return { requirements, issues };
+  return { project, requirements, issues, sprints };
 }
 
 async function sprint(projectId) {
