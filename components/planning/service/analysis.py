@@ -82,6 +82,38 @@ MODEL_BUNDLE = _load_bundle()
 if MODEL_BUNDLE and "model_version" in MODEL_BUNDLE:
     MODEL_VERSION = MODEL_BUNDLE["model_version"]
 
+# Range of the projects the models were trained on (it_project_data.csv, describe() in train1.ipynb).
+# A newer bundle can carry its own ranges under "feature_ranges" ({feature: {"min": .., "max": ..}}).
+TRAINING_RANGES = {
+    "Team_Size": (3, 21),
+    "Planned_Duration_Days": (45, 180),
+    "Tasks_Planned": (45, 351),
+    "Planned_Budget": (354_535, 10_722_998),
+}
+if MODEL_BUNDLE and isinstance(MODEL_BUNDLE.get("feature_ranges"), dict):
+    for _f, _r in MODEL_BUNDLE["feature_ranges"].items():
+        if _f in TRAINING_RANGES and {"min", "max"} <= set(_r):
+            TRAINING_RANGES[_f] = (_r["min"], _r["max"])
+
+
+def _out_of_range(params: dict[str, Any]) -> list[str]:
+    """Inputs outside the training range: the models would be extrapolating there."""
+    notes = []
+    for feature, (low, high) in TRAINING_RANGES.items():
+        value = params.get(feature)
+        if value is not None and not (low <= value <= high):
+            notes.append(f"{feature.replace('_', ' ').lower()} {value:g} (trained on {low:g}-{high:g})")
+    return notes
+
+
+def _regressors_are_separate(bundle: dict) -> bool:
+    """The two regressors must be separately trained models. In the v0.2 bundle both pipelines
+    share one RandomForest object (trained last on cost overrun), so the delay-% model is not usable."""
+    try:
+        return bundle["delay_pct_regressor"].named_steps["model"] is not bundle["cost_overrun_regressor"].named_steps["model"]
+    except Exception:
+        return False
+
 
 def _extract_planning_parameters(ctx: dict[str, Any], project_id: str) -> dict[str, Any]:
     """Extracts or derives planning features from context (issues, sprints, project, requirements)."""
@@ -233,7 +265,7 @@ def analyze(request: AnalyzeRequest) -> list[Insight]:
         title="Planning baseline from historical issues",
         target=Target(type="project", id=request.projectId, label=project_label),
         prediction=Prediction(label="Average story points per issue", value=avg_points, unit="points"),
-        confidence=0.9 if points else None,
+        confidence=None,
         severity="info",
         explanation=[ExplanationItem(feature="historical_issues", value=len(points), impact=1.0)] if points else [],
         recommendations=["Planning baseline feeds Sprint Intelligence to calibrate unestimated backlog items."],
@@ -255,6 +287,8 @@ def analyze(request: AnalyzeRequest) -> list[Insight]:
             # 2a. Delay Classification
             clf = MODEL_BUNDLE.get("delay_classifier")
             proba = float(clf.predict_proba(df_fe)[0, 1])
+
+            out_of_range = _out_of_range(params)
 
             # Determine severity
             if proba >= 0.7:
@@ -293,7 +327,7 @@ def analyze(request: AnalyzeRequest) -> list[Insight]:
 
             # 2b. Delay % Regressor
             delay_reg = MODEL_BUNDLE.get("delay_pct_regressor")
-            delay_pct = float(round(delay_reg.predict(df_fe)[0], 2)) if delay_reg else 0.0
+            delay_pct = float(round(delay_reg.predict(df_fe)[0], 2)) if delay_reg and _regressors_are_separate(MODEL_BUNDLE) else 0.0
 
             # 2c. Cost Overrun Regressor
             cost_reg = MODEL_BUNDLE.get("cost_overrun_regressor")
@@ -302,6 +336,15 @@ def analyze(request: AnalyzeRequest) -> list[Insight]:
             recommendations = _generate_recommendations(
                 proba, delay_pct, cost_pct, params, []
             )
+            if out_of_range:
+                # Outside the training data the probability is an extrapolation: say so, don't overstate it.
+                if delay_sev in ("high", "critical"):
+                    delay_sev = "medium"
+                recommendations = [
+                    "This project is outside the range the model was trained on ("
+                    + "; ".join(out_of_range)
+                    + "). Treat this estimate as indicative only."
+                ] + recommendations[:3]
 
             evidence_items = [
                 Evidence(
@@ -319,7 +362,7 @@ def analyze(request: AnalyzeRequest) -> list[Insight]:
                     title="Project Delivery Delay Risk",
                     target=Target(type="project", id=request.projectId, label=project_label),
                     prediction=Prediction(label="Probability of project delay", value=round(proba * 100, 1), unit="%"),
-                    confidence=float(round(max(proba, 1.0 - proba), 2)),
+                    confidence=None if out_of_range else float(round(max(proba, 1.0 - proba), 2)),
                     severity=delay_sev,
                     explanation=explanation_items,
                     recommendations=recommendations,
@@ -329,28 +372,29 @@ def analyze(request: AnalyzeRequest) -> list[Insight]:
                 )
             )
 
-            # Schedule Forecast Insight
+            # Schedule Forecast Insight (only when the delay-% regressor is its own trained model)
             extra_days = round(delay_pct / 100.0 * params["Planned_Duration_Days"], 1)
             duration_sev: Severity = "high" if delay_pct >= 20.0 else ("medium" if delay_pct >= 10.0 else "info")
-            insights.append(
-                Insight(
-                    component=COMPONENT,
-                    type="planning-duration-forecast",
-                    title="Estimated Schedule Slippage Forecast",
-                    target=Target(type="project", id=request.projectId, label=project_label),
-                    prediction=Prediction(label="Estimated schedule slippage", value=delay_pct, unit="%"),
-                    confidence=0.85,
-                    severity=duration_sev,
-                    explanation=[],
-                    recommendations=[
-                        f"Expected slippage of ~{extra_days} days beyond planned {int(params['Planned_Duration_Days'])} days.",
-                        "Establish bi-weekly sprint velocity checkpoints to prevent compounding schedule variance."
-                    ],
-                    evidence=evidence_items,
-                    modelVersion=MODEL_VERSION,
-                    isStub=False,
+            if _regressors_are_separate(MODEL_BUNDLE):
+                insights.append(
+                    Insight(
+                        component=COMPONENT,
+                        type="planning-duration-forecast",
+                        title="Estimated Schedule Slippage Forecast",
+                        target=Target(type="project", id=request.projectId, label=project_label),
+                        prediction=Prediction(label="Estimated schedule slippage", value=delay_pct, unit="%"),
+                        confidence=None,
+                        severity=duration_sev,
+                        explanation=[],
+                        recommendations=[
+                            f"Expected slippage of ~{extra_days} days beyond planned {int(params['Planned_Duration_Days'])} days.",
+                            "Establish bi-weekly sprint velocity checkpoints to prevent compounding schedule variance."
+                        ],
+                        evidence=evidence_items,
+                        modelVersion=MODEL_VERSION,
+                        isStub=False,
+                    )
                 )
-            )
 
             # Cost Overrun Insight
             extra_cost = round(cost_pct / 100.0 * params["Planned_Budget"], 2)
@@ -362,7 +406,7 @@ def analyze(request: AnalyzeRequest) -> list[Insight]:
                     title="Estimated Budget Variance Forecast",
                     target=Target(type="project", id=request.projectId, label=project_label),
                     prediction=Prediction(label="Estimated budget variance", value=cost_pct, unit="%"),
-                    confidence=0.85,
+                    confidence=None,
                     severity=cost_sev,
                     explanation=[],
                     recommendations=[
